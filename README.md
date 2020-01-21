@@ -1,2 +1,2 @@
-# Pol-Lib
+# PoLite
 Polarization package
