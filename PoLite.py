@@ -9,7 +9,15 @@ submillimetre polarimetric data sets.
 
 The two instruments currently supported are HAWC+ on the Stratospheric 
 Observatory for Infrared Astronomy (SOFIA) and POL-2 at the James Clerk Maxwell
-Telescope (JCMT). This script will someday include ALMA, APEX, NIKA-2, Planck. 
+Telescope (JCMT). This script will someday include ALMA, APEX, NIKA-2, Planck.
+
+Acknowledgements:
+    This research made use of APLpy, an open-source plotting package for Python
+    (Robitaille and Bressert, 2012).
+    This research made use of Astropy,\footnote{http://www.astropy.org} a 
+    community-developed core Python package for Astronomy \citep{astropy:2013, 
+    astropy:2018}.
+    
 """
 
 # REMINDER: Python arrays are inverted [y,x] relative to IDL [x,y]
@@ -19,7 +27,7 @@ Telescope (JCMT). This script will someday include ALMA, APEX, NIKA-2, Planck.
 # =============================================================================
 
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy import wcs
 from aplpy import FITSFigure
@@ -60,7 +68,8 @@ class obs:
 # Plotting procedure for polarization maps
 # =============================================================================
     def polmap(self, idi=50.0, pdp=3.0, color='rainbow', scalevec=0.4, 
-               clevels=100):
+               clevels=100, imin=0.0, imax=None, size_x = 9.0, size_y = 9.0,
+               dpi = 100.0):
         # Initialization
         # idi : Signal-to-noise ratio for Stokes I total intensity. Default is
         #       idi = 50.0, which leads to an upper limit of at least dP = 5.0%
@@ -69,7 +78,15 @@ class obs:
         #       Default is pdp = 3.0, which is the commonly accepted detection
         #       threshold in the litterature. 
         # color : Color scheme used for the plots. Default is rainbow. 
-        # scalevec: 
+        # scalevec : Length of the vectors plotted on the map.
+        # clevels : Number of contours plotted on the contour plot.
+        # imin : Minimum value plotted in the Stokes I intensity map.
+        #        Default is 0.0.
+        # imax : Maximum value plotted in the Stokes I intensity map.
+        #        If no value is provided, maximum is automatically detected.
+        # size_x : Width of the figure in inches.
+        # size_y : Height of the figure in inches.
+        # dpi : Number of pixels per inch for the figure. 
         
         print()
         print('======================================')
@@ -81,21 +98,23 @@ class obs:
         # for the Stokes I total intensity
         plot_hdu = fits.PrimaryHDU(data=self.I, header=self.header)
         # Loading the data in an APLpy figure 
-        polmap = FITSFigure(plot_hdu)
+        polmap = FITSFigure(plot_hdu, dpi=dpi, figsize=(size_x, size_y))
         
         print('Plotting the Stokes I total intensity map')
         print()
         
         # Showing the pixelated image and setting the aspect ratio
-        polmap.show_colorscale(cmap=color)
+        polmap.show_colorscale(cmap=color, vmin=imin, vmax=imax)
         # Plotting a filled contour plot of the data
         polmap.show_contour(cmap=color, levels=clevels, filled=True, 
                             extend='both')
         
         # Adding a colorbar to the plot
-        polmap.add_colorbar()
+        polmap.add_colorbar(pad=0.125)
         # Adding the units to the colorbar
         polmap.colorbar.set_axis_label_text(self.units)
+        # Moving the colorbar to be on top of the figure
+        polmap.colorbar.set_location('top')
         
         # Creating a new fits object for APLpy's FITSFigure method to recognize
         # for the polarization fraction P
@@ -111,10 +130,12 @@ class obs:
         print()
         
         # Creating a mask to hide polarization vectors with low signal-to-noise ratios
-        imask = np.where(self.I/self.dI < idi) # Total intensity threshold
-        pmask = np.where(self.P/self.dP < pdp) # Polarization threshold
+        imask_01 = np.where(self.I/self.dI < idi) # Total intensity SNR threshold
+        imask_02 = np.where(self.I < 0.0) # Total intensity positive threshold
+        pmask = np.where(self.P/self.dP < pdp) # Polarization SNR threshold
         # Masking all the indices for which the selection criteria failed
-        pmap.data[imask] = np.nan
+        pmap.data[imask_01] = np.nan
+        pmap.data[imask_02] = np.nan
         pmap.data[pmask] = np.nan
         
         print('Plotting the polarization vectors')
@@ -124,27 +145,32 @@ class obs:
         polmap.show_vectors(pmap, omap, scale=scalevec)
         
         # Adding the beam size
-        polmap.add_beam(facecolor='red', edgecolor='black',
-                     linewidth=2, pad=1, corner='bottom left')
-        # Labeling the beam size
-        polmap.add_label(0.0245, 0.019, 'Beam',
-                  horizontalalignment='left', weight='bold',
-                  relative=True, size='small')
+        polmap.add_beam(facecolor='white', edgecolor='black',
+                      linewidth=2, pad=1, corner='bottom left')
+        
+        # Adding the vector scale bar
+        vectscale = scalevec * self.pixel/3600
+        polmap.add_scalebar(5 * vectscale, "p = 5%",corner='top right',frame=True)
         
         # Removing the pixelated structure under the figure
         polmap.hide_colorscale() 
         
-        print('Returning the APLpy figure as output')
+        print('Returning the APLpy figure as output, please feel free to' +
+              'improve it (see online APLpy.FITSFigure documentation)')
+        print()
+        print('Don\'t forget to save the results using the' + 
+              ' .save(\'name.png\') function')
         print()
         print('Don\'t give up!')
         
         return polmap
 
 # =============================================================================
-# Plotting procedure for polarization maps
+# Plotting procedure for magnetic field maps
 # =============================================================================
-    def Bmap(self, idi=50.0, pdp=3.0, color='rainbow', scalevec=1.0, 
-               clevels=100):
+    def Bmap(self, idi=50.0, pdp=3.0, color='rainbow', scalevec=1.0,
+               clevels=100, imin=0.0, imax=None, size_x = 9.0, size_y = 9.0, 
+               dpi = 100.0):
         # Initialization
         # idi : Signal-to-noise ratio for Stokes I total intensity. Default is
         #       idi = 50.0, which leads to an upper limit of at least dP = 5.0%
@@ -153,7 +179,12 @@ class obs:
         #       Default is pdp = 3.0, which is the commonly accepted detection
         #       threshold in the litterature. 
         # color : Color scheme used for the plots. Default is rainbow. 
-        # scalevec: 
+        # scalevec : Length of the vectors plotted on the map.
+        # clevels : Number of contours plotted on the contour plot.
+        # imin : Minimum value plotted in the Stokes I intensity map.
+        #        Default is 0.0.
+        # imax : Maximum value plotted in the Stokes I intensity map.
+        #        If no value is provided, maximum is automatically detected.
         
         print()
         print('=====================================')
@@ -165,21 +196,25 @@ class obs:
         # for the Stokes I total intensity
         plot_hdu = fits.PrimaryHDU(data=self.I, header=self.header)
         # Loading the data in an APLpy figure 
-        Bmap = FITSFigure(plot_hdu)
+        Bmap = FITSFigure(plot_hdu, dpi=dpi, figsize=(size_x, size_y))
         
         print('Plotting the Stokes I total intensity map')
         print()
         
         # Showing the pixelated image and setting the aspect ratio
-        Bmap.show_colorscale(cmap=color)
+        Bmap.show_colorscale(cmap=color, vmin=imin, vmax=imax)
         # Plotting a filled contour plot of the data
         Bmap.show_contour(cmap=color, levels=clevels, filled=True, 
-                            extend='both')
+                          extend='both', vmin=imin, vmax=imax)
+        # Inverting ticks
+        #Bmap.ticks.set_tick_direction('in') # BUGGED in APLpy
         
         # Adding a colorbar to the plot
-        Bmap.add_colorbar()
+        Bmap.add_colorbar(pad=0.125)
         # Adding the units to the colorbar
         Bmap.colorbar.set_axis_label_text(self.units)
+        # Moving the colorbar to be on top of the figure
+        Bmap.colorbar.set_location('top')
         
         # Creating a new fits object for APLpy's FITSFigure method to recognize
         # for the polarization fraction P
@@ -195,12 +230,14 @@ class obs:
         print()
         
         # Creating a mask to hide polarization vectors with low signal-to-noise ratios
-        imask = np.where(self.I/self.dI < idi) # Total intensity threshold
-        pmask = np.where(self.P/self.dP < pdp) # Polarization threshold
+        imask_01 = np.where(self.I/self.dI < idi) # Total intensity SNR threshold
+        imask_02 = np.where(self.I < 0) # Total intensity positive threshold
+        pmask = np.where(self.P/self.dP < pdp) # Polarization SNR threshold
         # Forcing the polarization vectors to share the same amplitude
         pmap.data[np.where(self.P > 0.0)] = 1.0
         # Masking all the indices for which the selection criteria failed
-        pmap.data[imask] = np.nan
+        pmap.data[imask_01] = np.nan
+        pmap.data[imask_02] = np.nan
         pmap.data[pmask] = np.nan
         
         print('Plotting the magnetic field segments')
@@ -210,22 +247,23 @@ class obs:
         Bmap.show_vectors(pmap, omap, scale=scalevec)
         
         # Adding the beam size
-        Bmap.add_beam(facecolor='red', edgecolor='black',
-                     linewidth=2, pad=1, corner='bottom left')
-        # Labeling the beam size
-        Bmap.add_label(0.0245, 0.019, 'Beam',
-                  horizontalalignment='left', weight='bold',
-                  relative=True, size='small')
+        Bmap.add_beam(facecolor='white', edgecolor='black',
+                      linewidth=2, pad=1, corner='bottom left')
         
         # Removing the pixelated structure under the figure
-        Bmap.hide_colorscale() 
+        Bmap.hide_colorscale() # Warning: You need to reopen it to create a new
+                                        # colorbar, APLpy deals poorly with
+                                        # contour maps by themselves
         
-        print('Returning the APLpy figure as output')
+        print('Returning the APLpy figure as output, please feel free to' +
+              'improve it (see online APLpy.FITSFigure documentation)')
+        print()
+        print('Don\'t forget to save the results using the' + 
+              ' .save(\'name.png\') function')
         print()
         print('Have fun!')
         
         return Bmap
-    
     
 # =============================================================================
 # Function to create an obs object from a HAWC+ data cube
@@ -261,7 +299,7 @@ def load_hawc(fits_name):
     
     # Unit conversion from Jy/pixel to mJy/arcsec^2
     hawc_obs.pixel = (hawc_data[0].header['PIXSCAL']) # Pixel scale of the data in arcseconds
-    hawc_obs.units = 'mJy/arcsec$^2$' # Setting working units
+    hawc_obs.units = 'mJy per arcsec$^2$' # Setting working units
     conv = 1000.0*hawc_obs.pixel**-2.0 # Conversion factor from Jy/pixel
     
     # Loading data for every attribute of hawc_obs
