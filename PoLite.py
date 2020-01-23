@@ -27,7 +27,6 @@ Acknowledgements:
 # =============================================================================
 
 import numpy as np
-import matplotlib.pyplot as plt
 from astropy.io import fits
 from astropy import wcs
 from aplpy import FITSFigure
