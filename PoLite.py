@@ -30,6 +30,7 @@ import numpy as np
 from astropy.io import fits
 from astropy import wcs
 from aplpy import FITSFigure
+import math
 
 # =============================================================================
 # Object containing the polarization data and important ancillary information
@@ -66,9 +67,9 @@ class obs:
 # =============================================================================
 # Plotting procedure for polarization maps
 # =============================================================================
-    def polmap(self, idi=50.0, pdp=3.0, color='rainbow', scalevec=0.4, 
-               clevels=100, imin=0.0, imax=None, size_x = 9.0, size_y = 9.0,
-               dpi = 100.0):
+    def polmap(self, idi=50.0, pdp=3.0, pmax=40.0, color='rainbow', 
+               scalevec=0.4, clevels=100, imin=0.0, imax=None, 
+               size_x = 9.0, size_y = 9.0, dpi = 100.0):
         # Initialization
         # idi : Signal-to-noise ratio for Stokes I total intensity. Default is
         #       idi = 50.0, which leads to an upper limit of at least dP = 5.0%
@@ -76,6 +77,7 @@ class obs:
         # pdp : Signal-to-noise ratio for the de-biased polarization fraction P.
         #       Default is pdp = 3.0, which is the commonly accepted detection
         #       threshold in the litterature. 
+        # pmax : Maximum polarization fraction allowed.
         # color : Color scheme used for the plots. Default is rainbow. 
         # scalevec : Length of the vectors plotted on the map.
         # clevels : Number of contours plotted on the contour plot.
@@ -132,10 +134,12 @@ class obs:
         imask_01 = np.where(self.I/self.dI < idi) # Total intensity SNR threshold
         imask_02 = np.where(self.I < 0.0) # Total intensity positive threshold
         pmask = np.where(self.P/self.dP < pdp) # Polarization SNR threshold
+        pmaxmask = np.where(self.P > pmax) # Polarization SNR threshold
         # Masking all the indices for which the selection criteria failed
         pmap.data[imask_01] = np.nan
         pmap.data[imask_02] = np.nan
         pmap.data[pmask] = np.nan
+        pmap.data[pmaxmask] = np.nan
         
         print('Plotting the polarization vectors')
         print()
@@ -155,7 +159,7 @@ class obs:
         polmap.hide_colorscale() 
         
         print('Returning the APLpy figure as output, please feel free to' +
-              'improve it (see online APLpy.FITSFigure documentation)')
+              ' improve it (see online APLpy.FITSFigure documentation)')
         print()
         print('Don\'t forget to save the results using the' + 
               ' .save(\'name.png\') function')
@@ -167,7 +171,7 @@ class obs:
 # =============================================================================
 # Plotting procedure for magnetic field maps
 # =============================================================================
-    def Bmap(self, idi=50.0, pdp=3.0, color='rainbow', scalevec=1.0,
+    def Bmap(self, idi=50.0, pdp=3.0, pmax=30.0, color='rainbow', scalevec=1.0,
                clevels=100, imin=0.0, imax=None, size_x = 9.0, size_y = 9.0, 
                dpi = 100.0):
         # Initialization
@@ -177,6 +181,7 @@ class obs:
         # pdp : Signal-to-noise ratio for the de-biased polarization fraction P.
         #       Default is pdp = 3.0, which is the commonly accepted detection
         #       threshold in the litterature. 
+        # pmax : Maximum polarization fraction allowed.
         # color : Color scheme used for the plots. Default is rainbow. 
         # scalevec : Length of the vectors plotted on the map.
         # clevels : Number of contours plotted on the contour plot.
@@ -232,12 +237,14 @@ class obs:
         imask_01 = np.where(self.I/self.dI < idi) # Total intensity SNR threshold
         imask_02 = np.where(self.I < 0) # Total intensity positive threshold
         pmask = np.where(self.P/self.dP < pdp) # Polarization SNR threshold
+        pmaxmask = np.where(self.P > pmax) # Polarization SNR threshold
         # Forcing the polarization vectors to share the same amplitude
         pmap.data[np.where(self.P > 0.0)] = 1.0
         # Masking all the indices for which the selection criteria failed
         pmap.data[imask_01] = np.nan
         pmap.data[imask_02] = np.nan
         pmap.data[pmask] = np.nan
+        pmap.data[pmaxmask] = np.nan
         
         print('Plotting the magnetic field segments')
         print()
@@ -255,7 +262,7 @@ class obs:
                                         # contour maps by themselves
         
         print('Returning the APLpy figure as output, please feel free to' +
-              'improve it (see online APLpy.FITSFigure documentation)')
+              ' improve it (see online APLpy.FITSFigure documentation)')
         print()
         print('Don\'t forget to save the results using the' + 
               ' .save(\'name.png\') function')
@@ -287,7 +294,7 @@ def load_hawc(fits_name):
     # Loading the ancillary information for hawc_obs
     hawc_obs.header = hawc_data[0].header # Copy of the primary fits header
     hawc_obs.instrument = hawc_data[0].header['INSTRUME'] # Instrument used for observations
-    hawc_obs.wavelength = hawc_data[0].header['WAVECENT'] # Wavelength observed
+    hawc_obs.wavelength = hawc_data[0].header['WAVECENT'] # Wavelength observed in microns
     hawc_obs.object = hawc_data[0].header['OBJECT'] # Astronomical target name
     hawc_obs.astrometry = wcs.WCS(hawc_data[0].header) # Astrometry information for the data
     hawc_obs.beam = (hawc_data[0].header['BMAJ'])*3600.0 # Beam size in arcseconds
@@ -325,3 +332,143 @@ def load_hawc(fits_name):
     # Returning the obs object created with the HAWC+ data cube
     print('Have a nice day!')
     return hawc_obs
+
+# =============================================================================
+# Function to create an obs object from POL-2 Stokes I, Q, and U data
+# =============================================================================
+def load_pol2(target, fits_imap, fits_qmap, fits_umap):
+    # Initialization
+    # target : String for the target name
+    # fits_imap : String for the name of the Stokes I map to be loaded
+    # fits_qmap : String for the name of the Stokes Q map to be loaded
+    # fits_umap : String for the name of the Stokes U map to be loaded
+    
+    # This function is valid as of 2020/01/23
+           
+    print()
+    print('=============================')
+    print('Cheerfully loading POL-2 data')
+    print('=============================')
+    print()
+    print('Opening Stokes I file:')
+    print(fits_imap)
+    print()
+    print('Opening Stokes Q file:')
+    print(fits_qmap)
+    print()
+    print('Opening Stokes U file:')
+    print(fits_umap)
+    print()
+
+    # Loading the POL-2 fits file
+    pol2_imap = fits.open(fits_imap)
+    pol2_qmap = fits.open(fits_qmap)
+    pol2_umap = fits.open(fits_umap)
+    # Creating the obs object to be provided by the function
+    pol2_obs = obs()
+    
+    # Loading the ancillary information for pol2_obs
+    pol2_obs.header = pol2_imap[0].header # Copy of the primary fits header
+    pol2_obs.instrument = 'SCUBA-2 / POL-2' # Instrument used for observations
+    pol2_obs.wavelength = 10.0**6.0*pol2_imap[0].header['WAVELEN'] # Wavelength observed in microns
+    pol2_obs.object = target # Astronomical target name
+    pol2_obs.pixel = 3600.0*(pol2_imap[0].header['CDELT2']) # Pixel scale in arcseconds
+    
+    print('Astronomical object: ' + pol2_obs.object)
+    print('Wavelength observed: ' + str(pol2_obs.wavelength) + ' µm')
+    print()
+    
+    # Unit conversion from Jy/beam to mJy/arcsec^2
+    # Beam size in arcseconds
+    if pol2_obs.wavelength == 450.0:
+        pol2_obs.beam = 9.8 # Effective beam size at 450 um in arcseconds
+        conv = 1.35 * 491.0 # As of 2020/01/23
+    elif pol2_obs.wavelength == 850.0:
+        pol2_obs.beam = 14.6 # Effective beam size at 850 um in arcseconds
+        conv = 1.35 * 537.0 # As of 2020/01/23
+    else:
+        print('Sorry, but no valid wavelength was provided...')
+    
+    # Loading data for every attribute of hawc_obs
+    pol2_obs.I = np.squeeze(conv*pol2_imap[0].data) # Stokes I
+    pol2_obs.dI = np.squeeze(conv*pol2_imap[1].data**0.5) # Uncertainty dI for Stokes I
+    pol2_obs.Q = np.squeeze(conv*pol2_qmap[0].data) # Stokes Q
+    pol2_obs.dQ = np.squeeze(conv*pol2_qmap[1].data**0.5) # Uncertainty dQ for Stokes Q
+    pol2_obs.U = np.squeeze(conv*pol2_umap[0].data) # Stokes U
+    pol2_obs.dU = np.squeeze(conv*pol2_umap[1].data**0.5) # Uncertainty dU for Stokes U
+    
+    # Adapting the header if a third dimension exists in the data
+    pol2_obs.header['NAXIS'] = 2
+    pol2_obs.header.remove('NAXIS3')
+    pol2_obs.header.remove('LBOUND3')
+    pol2_obs.header.remove('CRPIX3')
+    pol2_obs.header.remove('CRVAL3')
+    pol2_obs.header.remove('CDELT3')
+    pol2_obs.header.remove('CTYPE3')
+    pol2_obs.header.remove('CUNIT3')
+    pol2_obs.header.remove('CRPIX3A')
+    pol2_obs.header.remove('CRVAL3A')
+    pol2_obs.header.remove('CDELT3A')
+    pol2_obs.header.remove('CUNIT3A')
+    pol2_obs.astrometry = wcs.WCS(pol2_obs.header) # Astrometry information for the data
+    
+    # Finding the Y and X size of the arrays 
+    pol2_obs.size = pol2_obs.I.shape # pol2_obs.size should be in the form (Y,X)
+    
+    # ======================================
+    # Generating the polarization properties
+    # ======================================
+    
+    # Biased polarized intensity
+    pi_biased = (pol2_obs.Q**2.0 + pol2_obs.U**2.0)**0.5
+    # PI uncertainties
+    pol2_obs.dPI = ((pol2_obs.Q*pol2_obs.dQ)**2.0 + 
+                    (pol2_obs.U*pol2_obs.dU)**2.0)**0.5/pi_biased
+    # De-biased polarized intensity PI
+    pol2_obs.PI = (pi_biased**2.0 - pol2_obs.dPI**2.0)**0.5
+    # Removing unphysical negative values
+    pimask = np.where(pol2_obs.PI < 0.0)
+    imask = np.where(pol2_obs.I < 0.0)
+    # Masking the values in PI and dPI
+    pol2_obs.PI[pimask] = np.nan
+    pol2_obs.dPI[pimask] = np.nan
+    pol2_obs.PI[imask] = np.nan
+    pol2_obs.dPI[imask] = np.nan
+    
+    # Polarization fraction P
+    pol2_obs.P = 100.0*pol2_obs.PI/pol2_obs.I
+    # Uncertainty of polarization fraction
+    pol2_obs.dP = pol2_obs.P*((pol2_obs.dPI/pol2_obs.PI)**2.0 + 
+                              (pol2_obs.dI/pol2_obs.I)**2.0)**0.5
+    
+    # Q and U ratio
+    ratioQU = pol2_obs.U/pol2_obs.Q
+    # Polarization angle O
+    pol2_obs.O = (0.5*180.0/math.pi)*np.arctan(ratioQU)
+    # Uncertainties dO
+    pol2_obs.dO = (0.5*180.0/math.pi)*((pol2_obs.Q*pol2_obs.dU)**2.0 + 
+                       (pol2_obs.U*pol2_obs.dQ)**2.0)**0.5/pi_biased
+    # Polarization angle B
+    pol2_obs.B = pol2_obs.O + 90.0
+    pol2_obs.B[np.where(pol2_obs.B > 90.0)] = pol2_obs.B[np.where(pol2_obs.B 
+               > 90.0)] - 180.0  
+    
+    # Closing access to the fits files
+    pol2_imap.close()
+    pol2_qmap.close()
+    pol2_umap.close()
+    
+    # Returning the obs object created with the POL-2 data
+    return pol2_obs
+
+
+
+
+
+
+
+
+
+
+
+
