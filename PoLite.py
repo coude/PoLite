@@ -373,6 +373,7 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     pol2_obs.wavelength = 10.0**6.0*pol2_imap[0].header['WAVELEN'] # Wavelength observed in microns
     pol2_obs.object = target # Astronomical target name
     pol2_obs.pixel = 3600.0*(pol2_imap[0].header['CDELT2']) # Pixel scale in arcseconds
+    pol2_obs.units = 'mJy per arcsec$^2$' # Units of the loaded data
     
     print('Astronomical object: ' + pol2_obs.object)
     print('Wavelength observed: ' + str(pol2_obs.wavelength) + ' µm')
@@ -382,10 +383,10 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     # Beam size in arcseconds
     if pol2_obs.wavelength == 450.0:
         pol2_obs.beam = 9.8 # Effective beam size at 450 um in arcseconds
-        conv = 1.35 * 491.0 # As of 2020/01/23
+        conv = 1000.0*1.35 * 491.0 # As of 2020/01/23
     elif pol2_obs.wavelength == 850.0:
         pol2_obs.beam = 14.6 # Effective beam size at 850 um in arcseconds
-        conv = 1.35 * 537.0 # As of 2020/01/23
+        conv = 1000.0*1.35 * 537.0 # As of 2020/01/23
     else:
         print('Sorry, but no valid wavelength was provided...')
     
@@ -410,6 +411,11 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     pol2_obs.header.remove('CRVAL3A')
     pol2_obs.header.remove('CDELT3A')
     pol2_obs.header.remove('CUNIT3A')
+    pol2_obs.header.append(
+            ('BMAJ',pol2_obs.beam/3600.0, 'Beam major axis'))
+    pol2_obs.header.append(
+            ('BMIN',pol2_obs.beam/3600.0, 'Beam minor axis'))
+    pol2_obs.header.append(('BPA',0.0, 'Beam position angle'))
     pol2_obs.astrometry = wcs.WCS(pol2_obs.header) # Astrometry information for the data
     
     # Finding the Y and X size of the arrays 
