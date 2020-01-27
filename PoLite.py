@@ -5,7 +5,7 @@ Created on Thu Dec 12 11:52:05 2019
 @authors: scoude, msgordon
 
 This library is designed to facilitate the analysis of far-infrared and 
-submillimetre polarimetric data sets. 
+submillimeter polarimetric data sets. 
 
 The two instruments currently supported are HAWC+ on the Stratospheric 
 Observatory for Infrared Astronomy (SOFIA) and POL-2 at the James Clerk Maxwell
