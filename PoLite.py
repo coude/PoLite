@@ -39,7 +39,7 @@ import math
 np.warnings.filterwarnings('ignore')
 
 # =============================================================================
-# Object containing the polarization data and important ancillary information
+# The polarization catalog class (currently work in progress)
 # =============================================================================
 class cat:
     # Default attributes of the object
@@ -519,7 +519,7 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     # fits_qmap : String for the name of the Stokes Q map to be loaded
     # fits_umap : String for the name of the Stokes U map to be loaded
     
-    # This function is valid as of 2020/05/17
+    # This function is valid as of 2020/09/15
            
     print()
     print('=============================')
