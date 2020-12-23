@@ -26,17 +26,14 @@ Acknowledgements:
 # Package dependencies
 # =============================================================================
 
-import numpy as np
 from astropy.io import fits
 from astropy import wcs
 from aplpy import FITSFigure
+from lmfit import Model
 import math
-#import warnings
-
-# Warning filter
-#warnings.simplefilter('ignore',category=wcs.FITSFixedWarning)
-# The following mutes warnings about NaN values
-np.warnings.filterwarnings('ignore')
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import stats
 
 # =============================================================================
 # The polarization catalog class (currently work in progress)
@@ -45,21 +42,184 @@ class cat:
     # Default attributes of the object
     def __init__(self):
         # Polarization data
-        self.I = np.empty([2]) # Stokes I
-        self.dI = np.empty([2]) # Uncertainty dI for Stokes I
-        self.Q = np.empty([2]) # Stokes Q
-        self.dQ = np.empty([2]) # Uncertainty dQ for Stokes Q
-        self.U = np.empty([2]) # Stokes U
-        self.dU = np.empty([2]) # Uncertainty dU for Stokes U
-        self.PI = np.empty([2]) # Polarized intensity PI (debiased)
-        self.dPI = np.empty([2]) # Uncertainty dPI for polarized intensity PI
-        self.P = np.empty([2]) # Polarization fraction P (debiased)
-        self.dP = np.empty([2]) # Uncertainty dP for polarization fraction P
-        self.O = np.empty([2]) # Polarization angle O
-        self.B = np.empty([2]) # Rotated polarization angle B (+90 degrees)
-        self.dO = np.empty([2]) # Uncertainty dO for polarization angle O
-        self.RA = np.empty([2]) # Right Ascension coordinates in degrees
-        self.DEC = np.empty([2]) # Declination coordinates in degrees
+        self.I = np.empty(0) # Stokes I
+        self.dI = np.empty(0) # Uncertainty dI for Stokes I
+        self.Q = np.empty(0) # Stokes Q
+        self.dQ = np.empty(0) # Uncertainty dQ for Stokes Q
+        self.U = np.empty(0) # Stokes U
+        self.dU = np.empty(0) # Uncertainty dU for Stokes U
+        self.PI = np.empty(0) # Polarized intensity PI (debiased)
+        self.dPI = np.empty(0) # Uncertainty dPI for polarized intensity PI
+        self.P = np.empty(0) # Polarization fraction P (debiased)
+        self.dP = np.empty(0) # Uncertainty dP for polarization fraction P
+        self.O = np.empty(0) # Polarization angle O
+        self.B = np.empty(0) # Rotated polarization angle B (+90 degrees)
+        self.dO = np.empty(0) # Uncertainty dO for polarization angle O
+        self.RA = np.empty(0) # Right Ascension coordinates in degrees
+        self.DEC = np.empty(0) # Declination coordinates in degrees
+        # Practical information
+        self.size = None
+    
+    # Histogram and Gaussian fit
+    def Histogram(self, binsize=5.0, showfit='yes'):
+        # Method to create an histogram from a vector catalog
+        
+        # Initialization
+        # binsize: Bin size for the histogram in degrees.
+        # showfit: Parameter to show the Gaussian fit on the final plot.
+        #          Should be 'yes' or 'no'.
+        
+        print()
+        print('========================================================')
+        print('Constructing a trusty histogram of polarization angles')
+        print('========================================================')
+        print()
+        
+        print('Calculating mean and standard deviaton of the catalog')
+        print()
+        
+        # Conversion from degrees to radians
+        conv_rad = math.pi/180.0
+        conv_deg = conv_rad**-1.0
+        
+        # Calculating the regular mean
+        norm_mean = np.mean(self.O)
+        norm_std = np.std(self.O)
+        
+        print('Mean: ' + str(norm_mean))
+        print('Standard deviation: ' + str(norm_std))
+        print()
+        
+        # Calculating the circular mean
+        circ_mean = conv_deg * stats.circmean(conv_rad*self.O)
+        circ_std = conv_deg * stats.circstd(conv_rad*self.O)
+        
+        print('Circular mean: ' + str(circ_mean))
+        print('Circular standard deviation: ' + str(circ_std))
+        print()
+        
+        # Calculating the number of bins by rounding to lowest integer
+        number_bins = math.floor(180.0 / (1.0 * binsize))
+        eff_binsize = 180.0/number_bins
+        
+        print('Number of bins: ' + str(number_bins))
+        print('Bin size used: ' + str(eff_binsize))
+        print()
+        
+        # Creating the histogram arrays
+        histo_bins = np.zeros(number_bins)
+        histo_values = np.zeros(number_bins)
+        # Identifying the values of the bins
+        for i in range (0,number_bins):
+            histo_bins[i] = (i + 0.5) * eff_binsize - 90.0
+        # Counting the number of vectors per bin - BRUTE FORCE VERSION
+        # CONSIDER USING NUMPY HISTOGRAM FUNCTION INSTEAD
+        for i in range (0,number_bins):
+            # Limits of the bin
+            min_limit = histo_bins[i] - 0.5 * eff_binsize
+            max_limit = histo_bins[i] + 0.5 * eff_binsize
+            # Checking every vector if they should be in the bin
+            for j in range (0,self.size):
+                if (self.O[j] >= min_limit) and (self.O[j] < max_limit):
+                    histo_values[i] = histo_values[i] + 1
+        
+        # Find array value closest to circular mean    
+        abs_array = np.abs(histo_bins - circ_mean)
+        smallest_diff = abs_array.argmin()        
+        # Calculating shift needed to center the histogram on circular mean
+        shift = math.ceil(number_bins/2.0) - smallest_diff
+        # Rolling the histogram
+        print('Using the circular mean to center the histogram')
+        print('Rolling histogram by '+str(shift)+' elements')
+        print()
+        histo_bins_rolled = np.roll(histo_bins, shift)
+        histo_values_rolled = np.roll(histo_values, shift)
+        
+        # Fixing values of rolled bins so array stays sorted
+        if shift > 0:
+            for i in range(0, shift):
+                histo_bins_rolled[i] = histo_bins_rolled[i] - 180.0
+        if shift < 0:
+            for i in range(number_bins+shift, number_bins):
+                histo_bins_rolled[i] = histo_bins_rolled[i] + 180.0
+        
+        # Attempting Gaussian fit to the data
+        # Defining the Gaussian function, stolen from the internet
+        # https://lmfit.github.io/lmfit-py/model.html
+        def gaussian(x, amp, cen, wid):
+            y = amp*np.exp(-(x-cen)**2 / (2*wid**2))
+            return y
+        
+        print('Fitting a Gaussian profile to the histogram')
+        print()
+        
+        # Calling the lmfit package to model the 'gaussian' function                        
+        gaussian_model = Model(gaussian)
+        gaussian_fit = gaussian_model.fit(histo_values_rolled, 
+                                          x=histo_bins_rolled, 
+                                          amp=np.mean(histo_values_rolled), 
+                                          cen=circ_mean, wid=circ_std)
+        # Creating the array containing the parameters
+        fit_params = np.empty([3,2])
+        # Amplitude
+        fit_params[0,0] = gaussian_fit.params['amp'].value
+        fit_params[0,1] = gaussian_fit.params['amp'].stderr
+        # Mean
+        fit_params[1,0] = gaussian_fit.params['cen'].value
+        fit_params[1,1] = gaussian_fit.params['cen'].stderr
+        # Standard deviation
+        fit_params[2,0] = gaussian_fit.params['wid'].value
+        fit_params[2,1] = gaussian_fit.params['wid'].stderr
+
+        print('Goodness of fit')
+        print('Number of iterations: '+str(gaussian_fit.nfev))
+        print('Reduced chi-squared: '+str(gaussian_fit.redchi)) 
+        print()
+        
+        print('Fitted parameters')
+        print('Amplitude:          '+str(gaussian_fit.params['amp'].value))
+        print('                  ± '+str(gaussian_fit.params['amp'].stderr))
+        print()
+        print('Mean:               '+str(gaussian_fit.params['cen'].value))
+        print('                  ± '+str(gaussian_fit.params['cen'].stderr))
+        print()
+        print('Standard deviation: '+str(gaussian_fit.params['wid'].value))
+        print('                  ± '+str(gaussian_fit.params['wid'].stderr))
+        print()
+
+        print('Plotting a dapper histogram')
+        print()
+        
+        # Plotting the histogram
+        histo_plot = plt.figure(figsize=(6, 3)) # Creating the figure object
+        plt.bar(histo_bins_rolled, histo_values_rolled, 
+                       width=eff_binsize, fill=False) # Creating the bar plot
+        plt.xlabel('Polarization Angle (Degree)')
+        plt.ylabel('Number')
+        plt.tight_layout() # Using all available space
+        # Setting range
+        xmin = histo_bins_rolled[0]-eff_binsize/2.0
+        xmax = histo_bins_rolled[number_bins-1]+eff_binsize/2.0
+        plt.xlim(xmin, xmax)
+        # Modifying the axes directly
+        axes = plt.gca() # Calling the axes object of the figure
+        axes.xaxis.set_ticks_position('both') # Adding ticks to each side
+        axes.yaxis.set_ticks_position('both') # Adding ticks to each side
+        # Plotting the best fit Gaussian
+        # Creating x values
+        gaussian_bins = np.arange(xmin, xmax, 0.1)
+        # Calculating the y values
+        gaussian_values = gaussian(gaussian_bins, fit_params[0,0], 
+                                   fit_params[1,0], fit_params[2,0])
+        # Plotting the Gaussian fit
+        if showfit == 'yes':
+            plt.plot(gaussian_bins, gaussian_values, 'k')
+        
+        print('Returning the histogram and the fit parameters')
+        print()
+        print('Stay classy!')
+        # Returning figure
+        return histo_plot, fit_params
 
 # =============================================================================
 # Object containing the polarization data and important ancillary information
@@ -68,21 +228,21 @@ class obs:
     # Default attributes of the object
     def __init__(self):
         # Polarization data
-        self.I = np.empty([2,2]) # Stokes I
-        self.dI = np.empty([2,2]) # Uncertainty dI for Stokes I
-        self.Q = np.empty([2,2]) # Stokes Q
-        self.dQ = np.empty([2,2]) # Uncertainty dQ for Stokes Q
-        self.U = np.empty([2,2]) # Stokes U
-        self.dU = np.empty([2,2]) # Uncertainty dU for Stokes U
-        self.PI = np.empty([2,2]) # Polarized intensity PI (debiased)
-        self.dPI = np.empty([2,2]) # Uncertainty dPI for polarized intensity PI
-        self.P = np.empty([2,2]) # Polarization fraction P (debiased)
-        self.dP = np.empty([2,2]) # Uncertainty dP for polarization fraction P
-        self.O = np.empty([2,2]) # Polarization angle O
-        self.B = np.empty([2,2]) # Rotated polarization angle B (+90 degrees)
-        self.dO = np.empty([2,2]) # Uncertainty dO for polarization angle O
-        self.RA = np.empty([2,2]) # Right Ascension coordinates in degrees
-        self.DEC = np.empty([2,2]) # Declination coordinates in degrees
+        self.I = np.empty([0,0]) # Stokes I
+        self.dI = np.empty([0,0]) # Uncertainty dI for Stokes I
+        self.Q = np.empty([0,0]) # Stokes Q
+        self.dQ = np.empty([0,0]) # Uncertainty dQ for Stokes Q
+        self.U = np.empty([0,0]) # Stokes U
+        self.dU = np.empty([0,0]) # Uncertainty dU for Stokes U
+        self.PI = np.empty([0,0]) # Polarized intensity PI (debiased)
+        self.dPI = np.empty([0,0]) # Uncertainty dPI for polarized intensity PI
+        self.P = np.empty([0,0]) # Polarization fraction P (debiased)
+        self.dP = np.empty([0,0]) # Uncertainty dP for polarization fraction P
+        self.O = np.empty([0,0]) # Polarization angle O
+        self.B = np.empty([0,0]) # Rotated polarization angle B (+90 degrees)
+        self.dO = np.empty([0,0]) # Uncertainty dO for polarization angle O
+        self.RA = np.empty([0,0]) # Right Ascension coordinates in degrees
+        self.DEC = np.empty([0,0]) # Declination coordinates in degrees
         
         # Observation properties
         self.instrument = 'None' # Instrument used for observations
@@ -94,6 +254,134 @@ class obs:
         self.astrometry = 'None' # Astrometry information for the data
         self.header = 'None' # Copy of the main fits header
         self.size = np.empty([2]) # Size of the array in Y and X
+        
+# =============================================================================
+# Creating vector catalogs
+# =============================================================================
+    def MakeCat(self, idi=50.0, pdp=3.0, pmax=30.0, mask=None):
+        # Method to create a vector catalog from a polarization object and
+        # a pre-created mask (optional).
+        
+        # Initialization
+        # idi : Signal-to-noise ratio for Stokes I total intensity. Default is
+        #       idi = 50.0, which leads to an upper limit of at least dP = 5.0%
+        #       for the error on the polarization fraction P.
+        # pdp : Signal-to-noise ratio for the de-biased polarization fraction P.
+        #       Default is pdp = 3.0, which is the commonly accepted detection
+        #       threshold in the litterature. 
+        # pmax : Maximum polarization fraction allowed.
+        # mask : Mask to use to create vector catalog. 
+        #        Should be created by MaskRegion.
+        
+        print()
+        print('===================================')
+        print('Creating an adorable vector catalog')
+        print('===================================')
+        print()
+        
+        # Initializing the polarization catalog
+        Cat = cat()
+        
+        # Reminding the user about the SNR criteria used
+        print('Signal-to-Noise Ratio of the Stokes I Total Intensity: '
+              + str(idi))
+        print('Signal-to-Noise Ratio of the Polarization Fraction P: ' 
+              + str(pdp))
+        print('Maximum Polarization Fraction P allowed: '+ str(pmax) + ' %')
+        print()
+        
+        # Creating the Python lists to be appended
+        Cat_RA = [] # Coordinates in degrees
+        Cat_Dec = [] # Coordinates in degrees
+        Cat_I = [] # Stokes I
+        Cat_dI =[] # Uncertainty dI for Stokes I
+        Cat_Q = [] # Stokes Q
+        Cat_dQ =[] # Uncertainty dI for Stokes Q
+        Cat_U = [] # Stokes U
+        Cat_dU =[] # Uncertainty dI for Stokes U
+        Cat_P = [] # Polarization fraction P (debiased)
+        Cat_dP =[] # Uncertainty dP for polarization fraction P
+        Cat_O = [] # Polarization angle O
+        Cat_B = [] # Rotated polarization angle B (+90 degrees)
+        Cat_dO =[] # Uncertainty dO for polarization angles
+        Cat_PI = [] # Polarized intensity PI (debiased)
+        Cat_dPI =[] # Uncertainty dPI for polarized intensity PI
+        
+        
+        # Checking if a mask has been supplied
+        if mask == None:
+            print('No mask supplied, creating catalog from all available '+
+                  'pixels.')
+        elif mask != None:
+            print('Limiting catalog to pixels covered by the mask.')
+        else:
+            print('Something is broken if you see this message.')
+        print()
+        
+        print('Adding polarization vectors to the catalog')
+        print()
+        
+        # Iterating on every pixel of the polarization data array
+        for i in range(0,self.size[0]): # Declination
+            for j in range(0,self.size[1]): # Right Ascension
+                # First check if a mask is used
+                if mask != None:
+                    # Check if current pixel should be skipped
+                    if mask.data[i,j] > 0.0:
+                        pass # Do nothing if mask value is not nan and greater than 0
+                    else:
+                        continue # Skip to the next iteration (i.e, pixel)
+                # Second check if pixel fits selection criteria
+                obs_i = self.I[i,j] > 0.0
+                obs_p = self.P[i,j] < pmax
+                obs_idi = self.I[i,j]/self.dI[i,j] > idi
+                obs_pdp = self.P[i,j]/self.dP[i,j] > pdp
+                if obs_i and obs_p and obs_idi and obs_pdp:
+                    # Finding the WCS coordinate
+                    sky = self.astrometry.wcs_pix2world(j,i,0)
+                    # Append values to their respective list
+                    Cat_RA.append(sky[0]) # Coordinates in degrees
+                    Cat_Dec.append(sky[1]) # Coordinates in degrees
+                    Cat_I.append(self.I[i,j]) # Stokes I
+                    Cat_dI.append(self.dI[i,j]) # Uncertainty dI for Stokes I
+                    Cat_Q.append(self.Q[i,j]) # Stokes Q
+                    Cat_dQ.append(self.dQ[i,j]) # Uncertainty dI for Stokes Q
+                    Cat_U.append(self.U[i,j]) # Stokes U
+                    Cat_dU.append(self.dU[i,j]) # Uncertainty dI for Stokes U
+                    Cat_P.append(self.P[i,j]) # Polarization fraction P (debiased)
+                    Cat_dP.append(self.dP[i,j]) # Uncertainty dP for polarization fraction P
+                    Cat_O.append(self.O[i,j]) # Polarization angle O
+                    Cat_B.append(self.B[i,j]) # Rotated polarization angle B (+90 degrees)
+                    Cat_dO.append(self.dO[i,j]) # Uncertainty dO for polarization angles
+                    Cat_PI.append(self.PI[i,j]) # Polarized intensity PI (debiased)
+                    Cat_dPI.append(self.dPI[i,j]) # Uncertainty dPI for polarized intensity PI
+                    
+        # Transfering the list as catalog attributes
+        Cat.RA = np.array(Cat_RA) # Coordinates in degrees
+        Cat.Dec = np.array(Cat_Dec) # Coordinates in degrees
+        Cat.I = np.array(Cat_I) # Stokes I
+        Cat.dI = np.array(Cat_dI) # Uncertainty dI for Stokes I
+        Cat.Q = np.array(Cat_Q) # Stokes Q
+        Cat.dQ = np.array(Cat_dQ) # Uncertainty dI for Stokes Q
+        Cat.U = np.array(Cat_U) # Stokes U
+        Cat.dU = np.array(Cat_dU) # Uncertainty dI for Stokes U
+        Cat.P = np.array(Cat_P) # Polarization fraction P (debiased)
+        Cat.dP = np.array(Cat_dP) # Uncertainty dP for polarization fraction P
+        Cat.O = np.array(Cat_O) # Polarization angle O
+        Cat.B = np.array(Cat_B) # Rotated polarization angle B (+90 degrees)
+        Cat.dO = np.array(Cat_dO) # Uncertainty dO for polarization angles
+        Cat.PI = np.array(Cat_PI) # Polarized intensity PI (debiased)
+        Cat.dPI = np.array(Cat_dPI) # Uncertainty dPI for polarized intensity PI
+        Cat.size = Cat.I.size
+        
+        if Cat.size == 0:
+            print('No polarization vector was included in the catalog.')
+            print()
+        
+        print('Delivering the vector catalog, stay strong!')
+        
+        # Return the catalog
+        return Cat
         
 # =============================================================================
 # Plotting procedure for polarization maps
@@ -248,8 +536,8 @@ class obs:
         # Plotting a filled contour plot of the data
         Bmap.show_contour(cmap=color, levels=clevels, filled=True, 
                           extend='both', vmin=imin, vmax=imax)
-        # Inverting ticks
-        #Bmap.ticks.set_tick_direction('in') # BUGGED in APLpy
+        # Inverting ticks        
+        #Bmap.ticks.set_tick_direction('in') # Not working in APLpy
         
         # Adding a colorbar to the plot
         Bmap.add_colorbar(pad=0.125)
@@ -362,7 +650,7 @@ class obs:
             print('Please provide the radius of the circle in degrees')
             return mask
         if shape == 'Rectangle' and (width == None or height == None):
-            print('Please provide the length and height of the rectangle '+
+            print('Please provide the width and height of the rectangle '+
                   'in degrees')
             return mask
         
@@ -593,9 +881,7 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     pol2_obs.header.append(
             ('BMIN',pol2_obs.beam/3600.0, 'Beam minor axis'))
     pol2_obs.header.append(('BPA',0.0, 'Beam position angle'))
-    pol2_obs.astrometry = wcs.WCS(pol2_obs.header) # Astrometry information for the data
-    #pol2_obs.astrometry = pol2_obs.astrometry.dropaxis(2) # Potential fix, investigate
-    
+    pol2_obs.astrometry = wcs.WCS(pol2_obs.header) # Astrometry information for the data    
     
     # Finding the Y and X size of the arrays 
     pol2_obs.size = pol2_obs.I.shape # pol2_obs.size should be in the form (Y,X)
@@ -652,15 +938,3 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     
     # Returning the obs object created with the POL-2 data
     return pol2_obs
-
-
-
-
-
-
-
-
-
-
-
-
