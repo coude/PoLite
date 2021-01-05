@@ -90,7 +90,7 @@ class cat:
         print('Standard deviation: ' + str(norm_std))
         print()
         
-        # Calculating the circular mean and standard deviation
+        # Calculating the circular mean and circular standard deviation
         # assuming boundaries of -90 to 90 degrees
         circ_mean = conv_deg * stats.circmean(conv_rad*self.O, 
                                               low=-math.pi/2.0, 
