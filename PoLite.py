@@ -2,7 +2,7 @@
 """
 Created on Thu Dec 12 11:52:05 2019
 
-@authors: scoude, msgordon
+@authors: coude
 
 This library is designed to facilitate the analysis of far-infrared and 
 submillimeter polarimetric data sets. 
@@ -12,11 +12,17 @@ Observatory for Infrared Astronomy (SOFIA) and POL-2 at the James Clerk Maxwell
 Telescope (JCMT). This script may someday include ALMA, APEX, NIKA-2, Planck.
 
 Acknowledgements:
-    This research made use of APLpy, an open-source plotting package for Python
+    This project made use of APLpy, an open-source plotting package for Python
     (Robitaille and Bressert, 2012).
-    This research made use of Astropy,\footnote{http://www.astropy.org} a 
+    
+    This project made use of Astropy,\footnote{http://www.astropy.org} a 
     community-developed core Python package for Astronomy \citep{astropy:2013, 
     astropy:2018}.
+    
+    This project was conducted in part at the SOFIA Science Center,
+    which is operated by the Universities Space Research Association 
+    under contract NNA17BF53C with the National Aeronautics and 
+    Space Administration.
     
 """
 
@@ -36,8 +42,10 @@ import numpy as np
 from scipy import stats
 
 # =============================================================================
-# The polarization catalog class (currently work in progress)
+# *****************************************************************************
+# The polarization catalog class
 # =============================================================================
+# *****************************************************************************
 class cat:
     # Default attributes of the object
     def __init__(self):
@@ -60,7 +68,9 @@ class cat:
         # Practical information
         self.size = None
     
-    # Histogram and Gaussian fit
+# =============================================================================
+# Function to create an Histogram and fit a Gaussian function
+# =============================================================================
     def Histogram(self, binsize=5.0, showfit='yes'):
         # Method to create an histogram from a vector catalog
         
@@ -201,7 +211,7 @@ class cat:
                        width=eff_binsize, fill=False) # Creating the bar plot
         plt.xlabel('Polarization Angle (Degree)')
         plt.ylabel('Number')
-        plt.tight_layout() # Using all available space
+        plt.tight_layout() # Using all available space in the plot window
         # Setting range
         xmin = histo_bins_rolled[0]-eff_binsize/2.0
         xmax = histo_bins_rolled[number_bins-1]+eff_binsize/2.0
@@ -223,12 +233,24 @@ class cat:
         print('Returning the histogram and the fit parameters')
         print()
         print('Stay classy!')
-        # Returning figure
+        # Returning figure and fits parameters
         return histo_plot, fit_params
+    
+# =============================================================================
+# Structure function and angular dispersion analysis
+# See Houde et al. (2013, ApJ, 766, 49)
+# =============================================================================
 
+    #def ADF():
+        
+       # return
+
+# *****************************************************************************
 # =============================================================================
 # Object containing the polarization data and important ancillary information
 # =============================================================================
+# *****************************************************************************
+
 class obs:
     # Default attributes of the object
     def __init__(self):
@@ -732,8 +754,10 @@ class obs:
         return mask
     
 # =============================================================================
+# *****************************************************************************
 # Function to create an obs object from a HAWC+ data cube
 # =============================================================================
+# *****************************************************************************
 def load_hawc(fits_name):
     # Initialization
     # fits_name : String for the name of the fits file to be loaded
@@ -803,8 +827,10 @@ def load_hawc(fits_name):
     return hawc_obs
 
 # =============================================================================
+# *****************************************************************************
 # Function to create an obs object from POL-2 Stokes I, Q, and U data
 # =============================================================================
+# *****************************************************************************
 def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     # Initialization
     # target : String for the target name
