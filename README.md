@@ -16,7 +16,7 @@ Package dependencies:
     lmfit
 
 If using conda, you may have to install reproject 0.7.1 manually using the
-following commad:
+following command:
     conda install -c astropy reproject
 
 Acknowledgements:
