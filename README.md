@@ -20,6 +20,7 @@ following command:
     conda install -c astropy reproject
 
 Acknowledgements:
+    
     This project made use of APLpy, an open-source plotting package for Python
     (Robitaille and Bressert, 2012).
     
