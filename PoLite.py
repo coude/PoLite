@@ -4,12 +4,24 @@ Created on Thu Dec 12 11:52:05 2019
 
 @authors: coude
 
-This library is designed to facilitate the analysis of far-infrared and 
-submillimeter polarimetric data sets. 
+This library is designed to facilitate the analysis of far-infrared, 
+submillimeter, and millimeter polarimetric data sets. 
 
 The two instruments currently supported are HAWC+ on the Stratospheric 
 Observatory for Infrared Astronomy (SOFIA) and POL-2 at the James Clerk Maxwell
 Telescope (JCMT). This script may someday include ALMA, APEX, NIKA-2, Planck.
+
+Explicit package dependencies:
+    math
+    matplotlib
+    numpy
+    scipy
+    astropy
+    aplpy
+    lmfit
+
+When using Conda, make sure the version of AplPy is compatible with the current
+version of Astropy. 
 
 Acknowledgements:
     This project made use of APLpy, an open-source plotting package for Python
@@ -34,8 +46,9 @@ Acknowledgements:
 
 from astropy.io import fits
 from astropy import wcs
+from astropy import coordinates as coord
 from aplpy import FITSFigure
-from lmfit import Model
+from lmfit import Parameters, Model
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -238,15 +251,240 @@ class cat:
     
 # =============================================================================
 # Structure function and angular dispersion analysis
-# See Houde et al. (2013, ApJ, 766, 49)
 # =============================================================================
-
-    #def ADF():
+    def ADF(self, binsize=8.0, binrange=80.0, deltaPrime=None, 
+            beamsize=None, showfit='yes'):
+        # See Houde et al. (2013, ApJ, 766, 49)
+        # Initialization
+        # binsize: Bin size for the structure function in arcseconds
+        # binrange: Upper limit for the values of bins in the fit
+        # deltaPrime: Effective cloud depth in arcseconds
+        # beamsize: FWHM of the telescope beam in arcseconds
         
-       # return
+        print()
+        print('==============================================')
+        print('Calculating a wise Angular Dispersion Function')
+        print('==============================================')
+        print()
+        
+        # Conversion from degrees to radians
+        conv_rad = math.pi/180.0
+        conv_arc = 3600.0 * 180.0 / math.pi
+        # Calculating the number of independent pairs 
+        # for the structure function
+        number_pairs = round((self.size - 1) * self.size / 2)
+        
+        print('Total number of unique pairs: '+str(number_pairs))
+        
+        # Creating the array containing the information for all pairs
+        cat_pairs = np.zeros([number_pairs,13])
+        
+        # Obtaining the characteristics of each pair
+        # l, DeltaO, dDeltaO, RA1, DEC1, O1, dO1, RA2, DEC2, O2, dO2, cos(DeltaO), 
+        # dcos(DeltaO)
+        # Iterating on each vector of the input catalog
+        k = 0
+        for i in range(0,self.size):
+            # Beginning the pairing process
+            pairing_start = i + 1
+            outside_range = 0
+            
+            # Iterating on each unique pair associated with the current vector
+            for j in range(pairing_start,self.size):
+                # Origin vector information
+                cat_pairs[k,3] = self.RA[i] * conv_rad
+                cat_pairs[k,4] = self.DEC[i] * conv_rad
+                cat_pairs[k,5] = self.B[i] * conv_rad
+                cat_pairs[k,6] = self.dO[i] * conv_rad
+                # Current vector information
+                cat_pairs[k,7] = self.RA[j] * conv_rad
+                cat_pairs[k,8] = self.DEC[j] * conv_rad
+                cat_pairs[k,9] = self.B[j] * conv_rad
+                cat_pairs[k,10] = self.dO[j] * conv_rad
+                
+                # Calculating the difference in angles (assuming 0 to 180)
+                diff_O = abs(self.O[i]-self.O[j])
+                if diff_O > 90.0:
+                    diff_O = abs(180.0 - diff_O)
+                cat_pairs[k,1] = diff_O
+                # Calculating cos(DeltaO) to build the ADF
+                cat_pairs[k,11] = math.cos(cat_pairs[k,1] * conv_rad)
+                # Uncertainties on angles - Assuming standard deviation addition
+                cat_pairs[k,2] = (self.dO[i]**2.0 + self.dO[j]**2.0)**0.5
+                cat_pairs[k,12] = abs(math.sin(cat_pairs[k,1]*conv_rad)
+                                      *cat_pairs[k,2]*conv_rad)
+                
+                # Measuring the distance between the vectors (in arcseconds)
+                cat_pairs[k,0] = conv_arc * coord.angular_separation(cat_pairs[k,3], 
+                                                                     cat_pairs[k,4],
+                                                                     cat_pairs[k,7], 
+                                                                     cat_pairs[k,8])
+                
+                # Checking if pair is outside range
+                if cat_pairs[k,0] > 80.0:
+                    outside_range = outside_range + 1
+                                
+                # Iterating position in pairs catalog
+                k = k + 1
 
-# *****************************************************************************
+        # Printing the number of pairs inside and outside the range            
+        inside_range = number_pairs - outside_range
+        print('Number of unique pairs inside range: '+str(inside_range))
+        print('Number of unique pairs outside range: '+str(outside_range))
+
+        # Robustly building the Angular Dispersion Function
+        ratio_range = 1.0 * binrange / (1.0 * binsize)
+        number_bins = math.ceil(ratio_range)
+        print()
+        print('=================================================')
+        print('Robustly building the Angular Dispersion Function')
+        print('=================================================')
+        print()
+        print('Number of bins for the histogram: '+str(number_bins))
+        print()
+
+        # Creating the histogram array
+        adf_function = np.zeros([number_bins,4])
+        # Brute force approach to building the Angular Dispersion Function
+        # There has to be a more efficient way (by removing previously found pairs
+        # from the table?) = .delete() from numpy? needs to update size()
+        for m in range(0, number_bins):
+            # Creating the bins
+            adf_function[m,0] = m * binsize
+            # Limits of the bin
+            min_limit = adf_function[m,0] - 0.5 * binsize
+            max_limit = adf_function[m,0] + 0.5 * binsize
+            # Initialization of iteration variables
+            total_difference = 0.0 # Adding cos(DeltaO) to be averaged
+            total_error = 0.0 # Adding the errors to be averaged
+            total_counter = 0.0 # Keeping track of the number of pairs in the bin
+            # Looping through the vector catalog for each bin
+            for n in range(0,number_pairs):
+                # Checking if the vector should be in the bin
+                if cat_pairs[n,0] > min_limit and cat_pairs[n,0] <= max_limit:
+                    total_difference = total_difference + cat_pairs[n,11]
+                    total_error = total_error + cat_pairs[n,12]**2.0
+                    total_counter = total_counter + 1.0
+        
+            # Calculating the ADF value for the given bin 
+            if total_counter > 0.0: 
+                adf_function[m,1] = 1.0 - total_difference / total_counter
+                adf_function[m,2] = total_error**0.5 / total_counter
+                adf_function[m,3] = adf_function[m,2]**-1.0 # Weights for Model
+
+        if deltaPrime == None or beamsize == None:
+            print('No values provided for deltaPrime or beamsize parameters')
+            print('Returning Angular Dispersion Function without fit, have fun!')
+            return adf_function, 0
+
+        # Fitting the ADF function from Houde et al. (2013)
+        def houde2013_adf(l, turb, ratio, coeff, deltaPrime, beamsize):
+            # Converting from arcseconds to radians
+            conv_rad_arc = (3600.0 * 180.0 / math.pi)**-1.0 
+            # Beam size conversion
+            W = conv_rad_arc*beamsize*(2.0*(2.0*math.log(2.0))**0.5)**-1.0
+            # Effective cloud depth
+            depth = conv_rad_arc * deltaPrime
+            # Multiplicative constant
+            A = (2.0*math.pi)**0.5
+            
+            # Parameters to be fitted
+            delta = conv_rad_arc*turb
+            BtBo = 1.0 * ratio
+            a0 = conv_rad_arc**-2.0 * coeff
+            
+            # Simplifications
+            # Turbulence and beam size
+            D = (delta**2.0 + 2.0*W**2.0)
+            # Exponential
+            x=conv_rad_arc*l
+            ex = np.exp(-1.0*x**2.0/(2.0*D))
+            # First component
+            zero = (1.0 + (depth*D)/(A*delta**3.0*BtBo))**-1.0
+
+            # Function
+            adf = zero * (1.0 - ex) + a0*x**2.0
+            return adf
+        
+        # Creating the model function
+        print('Creating the model Angular Dispersion Function based on Houde et al. (2009)')
+        print('Using Model class from the LMFIT library for Python')
+        ADFmodel = Model(houde2013_adf)
+        # Automatically creating the parameters from the model
+        print()
+        print('Generating the initial conditions for the fit')
+        FITparams = ADFmodel.make_params()
+        
+        # Setting the parameters
+        # Turbulent correlation length
+        FITparams['turb'].value = 5.0
+        FITparams['turb'].min = 0.0
+        print('Turbulence correlation length: ' + str(FITparams['turb'].value) + ' arcsec')
+        # Magnetic field ratio
+        FITparams['ratio'].value = 0.1
+        FITparams['ratio'].min = 0.0
+        FITparams['ratio'].max = 20.0
+        print('Magnetic field ratio <Bt^2>/<Bo^2>: ' + str(FITparams['ratio'].value))
+        # First order Taylor coefficient
+        FITparams['coeff'].value = 0.0001
+        FITparams['coeff'].min = 0.0
+        print('First Taylor coefficient a0: ' + str(FITparams['coeff'].value))
+        # Cloud depth
+        FITparams['deltaPrime'].value = deltaPrime
+        FITparams['deltaPrime'].vary = False
+        print('Cloud depth: ' + str(FITparams['deltaPrime'].value) + ' arcsec')
+        # Beam size
+        FITparams['beamsize'].value = beamsize
+        FITparams['beamsize'].vary = False
+        print('Beam size: ' + str(FITparams['beamsize'].value) + ' arcsec')
+        
+        print()
+        print('Cleverly fitting the Angular Dispersion Function')
+        # Fitting the ADF function
+        ADFfit = ADFmodel.fit(adf_function[:,1], FITparams, 
+                              l=adf_function[:,0], weights=adf_function[:,3])
+        print()
+        print('Printing the results of the fit')
+        print()
+        print(ADFfit.fit_report())
+        print()
+        print('Plotting the Angular Dispersion Function and the best fit')
+        print()
+        print('Thanks for your patience!')
+
+        # Plotting the ADF
+        ADFplot = plt.figure(figsize=(6, 3)) # Creating the figure object
+        plt.scatter(adf_function[:,0], adf_function[:,1], facecolors='none', 
+                    edgecolors='black') # Creating the bar plot
+        plt.errorbar(adf_function[:,0], adf_function[:,1], 
+                     yerr=adf_function[:,2], fmt="None", color='black')
+        plt.xlabel('Distance (Arcseconds)')
+        plt.ylabel('$1-cos<\Delta\phi>$')
+        plt.tight_layout() # Using all available space in the plot window
+        # Setting range
+        plt.xlim(0, binrange)
+        plt.ylim(bottom=0.0)
+        # Modifying the axes directly
+        axes = plt.gca() # Calling the axes object of the figure
+        axes.xaxis.set_ticks_position('both') # Adding ticks to each side
+        axes.yaxis.set_ticks_position('both') # Adding ticks to each side
+
+        # Creating x values
+        ADFx = np.linspace(0.0, binrange)
+        # Calculating the y values
+        ADFy = houde2013_adf(ADFx, ADFfit.params['turb'].value, 
+                             ADFfit.params['ratio'].value, 
+                             ADFfit.params['coeff'].value, 
+                             ADFfit.params['deltaPrime'].value,
+                             ADFfit.params['beamsize'].value)
+        if showfit == 'yes':
+            plt.plot(ADFx, ADFy, 'k')
+
+        return adf_function, ADFfit, ADFplot
+
+
 # =============================================================================
+# *****************************************************************************
 # Object containing the polarization data and important ancillary information
 # =============================================================================
 # *****************************************************************************
@@ -338,11 +576,11 @@ class obs:
         # Checking if a mask has been supplied
         if mask == None:
             print('No mask supplied, creating catalog from all available '+
-                  'pixels.')
+                  'pixels')
         elif mask != None:
-            print('Limiting catalog to pixels covered by the mask.')
+            print('Limiting catalog to pixels covered by the mask')
         else:
-            print('Something is broken if you see this message.')
+            print('Something is broken if you see this message')
         print()
         
         print('Adding polarization vectors to the catalog')
@@ -385,7 +623,7 @@ class obs:
                     
         # Transfering the list as catalog attributes
         Cat.RA = np.array(Cat_RA) # Coordinates in degrees
-        Cat.Dec = np.array(Cat_Dec) # Coordinates in degrees
+        Cat.DEC = np.array(Cat_Dec) # Coordinates in degrees
         Cat.I = np.array(Cat_I) # Stokes I
         Cat.dI = np.array(Cat_dI) # Uncertainty dI for Stokes I
         Cat.Q = np.array(Cat_Q) # Stokes Q

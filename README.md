@@ -7,6 +7,7 @@ Observatory for Infrared Astronomy (SOFIA) and POL-2 at the James Clerk Maxwell
 Telescope (JCMT). This script may someday include ALMA, APEX, NIKA-2, Planck.
 
 Package dependencies:
+    
     math
     matplotlib
     numpy
@@ -16,10 +17,12 @@ Package dependencies:
     lmfit
 
 If using conda, you may have to install reproject 0.7.1 manually using the
-following commad:
+following command:
+    
     conda install -c astropy reproject
 
 Acknowledgements:
+    
     This project made use of APLpy, an open-source plotting package for Python
     (Robitaille and Bressert, 2012).
     
