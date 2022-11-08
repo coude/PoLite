@@ -275,7 +275,10 @@ class cat:
         number_pairs = round((self.size - 1) * self.size / 2)
         
         print('Total number of unique pairs: '+str(number_pairs))
-        
+        print()
+        print('Creating a catalog of '+str(number_pairs)+' pairs, hang in there!')
+        print()
+
         # Creating the array containing the information for all pairs
         cat_pairs = np.zeros([number_pairs,13])
         
@@ -284,10 +287,11 @@ class cat:
         # dcos(DeltaO)
         # Iterating on each vector of the input catalog
         k = 0
+        inside_range = 0
+        #short_cat_pairs = np.empty(shape=(0, 13)) # unused catalog
         for i in range(0,self.size):
             # Beginning the pairing process
             pairing_start = i + 1
-            outside_range = 0
             
             # Iterating on each unique pair associated with the current vector
             for j in range(pairing_start,self.size):
@@ -319,16 +323,21 @@ class cat:
                                                                      cat_pairs[k,4],
                                                                      cat_pairs[k,7], 
                                                                      cat_pairs[k,8])
-                
-                # Checking if pair is outside range
-                if cat_pairs[k,0] > 80.0:
-                    outside_range = outside_range + 1
+
+                # Checking if pair is inside range
+                if cat_pairs[k,0] <= binrange:
+                    inside_range = inside_range + 1
+                    ## If inside range, stack into new shorter catalog
+                    # short_cat_pairs = np.vstack((short_cat_pairs, cat_pairs[k,:]))
+                    ## WARNING: stacking the new catalog within the loop significantly impacts
+                    ## the overall performance of the algorithm, it is not a good solution
+                    ## This part may need high performance array operations
                                 
                 # Iterating position in pairs catalog
                 k = k + 1
 
         # Printing the number of pairs inside and outside the range            
-        inside_range = number_pairs - outside_range
+        outside_range = number_pairs - inside_range
         print('Number of unique pairs inside range: '+str(inside_range))
         print('Number of unique pairs outside range: '+str(outside_range))
 
@@ -345,6 +354,7 @@ class cat:
 
         # Creating the histogram array
         adf_function = np.zeros([number_bins,4])
+        max_pairs = number_pairs
         # Brute force approach to building the Angular Dispersion Function
         # There has to be a more efficient way (by removing previously found pairs
         # from the table?) = .delete() from numpy? needs to update size()
@@ -358,13 +368,19 @@ class cat:
             total_difference = 0.0 # Adding cos(DeltaO) to be averaged
             total_error = 0.0 # Adding the errors to be averaged
             total_counter = 0.0 # Keeping track of the number of pairs in the bin
+            list_indices = [] # Creating empty list of indices
             # Looping through the vector catalog for each bin
-            for n in range(0,number_pairs):
+            for n in range(0,max_pairs):
                 # Checking if the vector should be in the bin
                 if cat_pairs[n,0] > min_limit and cat_pairs[n,0] <= max_limit:
                     total_difference = total_difference + cat_pairs[n,11]
                     total_error = total_error + cat_pairs[n,12]**2.0
                     total_counter = total_counter + 1.0
+                    list_indices.append(n)
+            
+            # Reducing size of pairs catalog
+            cat_pairs = np.delete(cat_pairs, list_indices, axis=0)  # Deleting pairs
+            max_pairs = cat_pairs.shape[0] # Size of the reduced array
         
             # Calculating the ADF value for the given bin 
             if total_counter > 0.0: 
