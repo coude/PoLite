@@ -421,6 +421,34 @@ class cat:
             # Function
             adf = zero * (1.0 - ex) + a0*x**2.0
             return adf
+
+        # Approximation where f(l) = b**2(0) + a*l**2
+        def houde2013_constant(l, turb, ratio, coeff, deltaPrime, beamsize):
+            # Converting from arcseconds to radians
+            conv_rad_arc = (3600.0 * 180.0 / math.pi)**-1.0 
+            # Beam size conversion
+            W = conv_rad_arc*beamsize*(2.0*(2.0*math.log(2.0))**0.5)**-1.0
+            # Effective cloud depth
+            depth = conv_rad_arc * deltaPrime
+            # Multiplicative constant
+            A = (2.0*math.pi)**0.5
+            
+            # Parameters to be fitted
+            delta = conv_rad_arc*turb
+            BtBo = 1.0 * ratio
+            a0 = conv_rad_arc**-2.0 * coeff
+            
+            # Simplifications
+            # Turbulence and beam size
+            D = (delta**2.0 + 2.0*W**2.0)
+            # Distances
+            x=conv_rad_arc*l
+            # First component
+            zero = (1.0 + (depth*D)/(A*delta**3.0*BtBo))**-1.0
+
+            # Simplified function
+            ADFconstant = zero + a0*x**2.0
+            return ADFconstant
         
         # Creating the model function
         print('Creating the model Angular Dispersion Function based on Houde et al. (2009)')
@@ -469,12 +497,12 @@ class cat:
         print('Thanks for your patience!')
 
         # Plotting the ADF
-        ADFplot = plt.figure(figsize=(6, 3)) # Creating the figure object
+        ADFplot = plt.figure(figsize=(6, 3)) # Creating the figure object  
         plt.scatter(adf_function[:,0], adf_function[:,1], facecolors='none', 
                     edgecolors='black') # Creating the bar plot
         plt.errorbar(adf_function[:,0], adf_function[:,1], 
                      yerr=adf_function[:,2], fmt="None", color='black')
-        plt.xlabel('Distance (Arcseconds)')
+        plt.xlabel('Distance $l$ (Arcseconds)')
         plt.ylabel('$1-cos<\Delta\phi>$')
         plt.tight_layout() # Using all available space in the plot window
         # Setting range
@@ -493,8 +521,103 @@ class cat:
                              ADFfit.params['coeff'].value, 
                              ADFfit.params['deltaPrime'].value,
                              ADFfit.params['beamsize'].value)
+        ADFy0 = houde2013_constant(ADFx, ADFfit.params['turb'].value, 
+                                   ADFfit.params['ratio'].value, 
+                                   ADFfit.params['coeff'].value, 
+                                   ADFfit.params['deltaPrime'].value,
+                                   ADFfit.params['beamsize'].value)
         if showfit == 'yes':
+            plt.plot(ADFx, ADFy0, 'k', linestyle='dashed')
             plt.plot(ADFx, ADFy, 'k')
+
+        # Defining the autocorrelation functions
+        def bltheoretical(l, turb, ratio, deltaPrime, beamsize):
+            # Converting from arcseconds to radians
+            conv_rad_arc = (3600.0 * 180.0 / math.pi)**-1.0 
+            # Beam size conversion
+            W = conv_rad_arc*beamsize*(2.0*(2.0*math.log(2.0))**0.5)**-1.0
+            # Effective cloud depth
+            depth = conv_rad_arc * deltaPrime
+            # Multiplicative constant
+            A = (2.0*math.pi)**0.5
+            
+            # Parameters to be fitted
+            delta = conv_rad_arc*turb
+            BtBo = 1.0 * ratio
+            # Simplifications
+            # Turbulence and beam size
+            D = (delta**2.0 + 2.0*W**2.0)
+            D2 = 2.0*W**2.0
+            # Exponential
+            x=conv_rad_arc*l
+            ex = np.exp(-1.0*x**2.0/(2.0*D))
+            ex2 = np.exp(-1.0*x**2.0/(2.0*D2))
+            # First component
+            zero = (1.0 + (depth*D)/(A*delta**3.0*BtBo))**-1.0
+            # Functions
+            bltheoretical = zero * ex
+            blbeam = zero * ex2
+            return bltheoretical, blbeam
+
+        def blempirical(l, y, turb, ratio, coeff, deltaPrime, beamsize):
+            # Converting from arcseconds to radians
+            conv_rad_arc = (3600.0 * 180.0 / math.pi)**-1.0 
+            # Beam size conversion
+            W = conv_rad_arc*beamsize*(2.0*(2.0*math.log(2.0))**0.5)**-1.0
+            # Effective cloud depth
+            depth = conv_rad_arc * deltaPrime
+            # Multiplicative constant
+            A = (2.0*math.pi)**0.5
+            
+            # Parameters to be fitted
+            delta = conv_rad_arc*turb
+            BtBo = 1.0 * ratio
+            a0 = conv_rad_arc**-2.0 * coeff
+            
+            # Simplifications
+            # Turbulence and beam size
+            D = (delta**2.0 + 2.0*W**2.0)
+            # Exponential
+            x=conv_rad_arc*l
+            # First component
+            zero = (1.0 + (depth*D)/(A*delta**3.0*BtBo))**-1.0
+
+            # Function
+            blemp = zero + a0*x**2.0 - y
+            return blemp
+
+        # Calculating the y values for the theoretical autocorrelation function
+        bltheo, blbeam = bltheoretical(ADFx, ADFfit.params['turb'].value, 
+                                       ADFfit.params['ratio'].value,  
+                                       ADFfit.params['deltaPrime'].value,
+                                       ADFfit.params['beamsize'].value)
+        # Calculating the y values from the dispersion data set
+        blem = blempirical(adf_function[:,0], adf_function[:,1], 
+                           ADFfit.params['turb'].value, 
+                           ADFfit.params['ratio'].value,
+                           ADFfit.params['coeff'].value,  
+                           ADFfit.params['deltaPrime'].value,
+                           ADFfit.params['beamsize'].value)
+
+        # Plotting the autocorrelation function b**2(l)
+        blplot = plt.figure(figsize=(6, 3)) # Creating the figure object
+        plt.scatter(adf_function[:,0], blem, facecolors='none', 
+                    edgecolors='black') # Creating the bar plot
+        plt.errorbar(adf_function[:,0], blem, 
+                     yerr=adf_function[:,2], fmt="None", color='black')
+        plt.xlabel('Distance $l$ (Arcseconds)')
+        plt.ylabel('$b^2(l)$')
+        plt.tight_layout() # Using all available space in the plot window
+        # Setting range
+        plt.xlim(0, binrange)
+        # Modifying the axes directly
+        axes2 = plt.gca() # Calling the axes object of the figure
+        axes2.xaxis.set_ticks_position('both') # Adding ticks to each side
+        axes2.yaxis.set_ticks_position('both') # Adding ticks to each side    
+        if showfit == 'yes':
+
+            plt.plot(ADFx, blbeam, 'k', linestyle='dashed')
+            plt.plot(ADFx, bltheo, 'k')
 
         return adf_function, ADFfit, ADFplot
 
@@ -659,6 +782,7 @@ class obs:
             print('No polarization vector was included in the catalog.')
             print()
         
+        print('Number of elements in the catalog: '+ str(Cat.size))
         print('Delivering the vector catalog, stay strong!')
         
         # Return the catalog
