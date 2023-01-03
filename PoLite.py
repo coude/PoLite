@@ -792,7 +792,7 @@ class obs:
 # Plotting procedure for polarization maps
 # =============================================================================
     def polmap(self, idi=50.0, pdp=3.0, pmax=30.0, color='rainbow', 
-               scalevec=0.4, clevels=100, imin=0.0, imax=None, 
+               scalevec=0.4, stepvec = 1, clevels=100, imin=0.0, imax=None, 
                size_x = 9.0, size_y = 9.0, dpi = 100.0):
         # Initialization
         # idi : Signal-to-noise ratio for Stokes I total intensity. Default is
@@ -804,6 +804,7 @@ class obs:
         # pmax : Maximum polarization fraction allowed.
         # color : Color scheme used for the plots. Default is rainbow. 
         # scalevec : Length of the vectors plotted on the map.
+        # stepvec : Number of vectors skipped in the plot (default is none). 
         # clevels : Number of contours plotted on the contour plot.
         # imin : Minimum value plotted in the Stokes I intensity map.
         #        Default is 0.0.
@@ -875,7 +876,7 @@ class obs:
         print()
         
         # Plotting the polarization vectors
-        polmap.show_vectors(pmap, omap, scale=scalevec)
+        polmap.show_vectors(pmap, omap, scale=scalevec , step=stepvec)
         
         # Adding the beam size
         polmap.add_beam(facecolor='white', edgecolor='black',
@@ -902,8 +903,8 @@ class obs:
 # Plotting procedure for magnetic field maps
 # =============================================================================
     def Bmap(self, idi=50.0, pdp=3.0, pmax=30.0, color='rainbow', scalevec=1.0,
-               clevels=100, imin=0.0, imax=None, size_x = 9.0, size_y = 9.0, 
-               dpi = 100.0):
+               stepvec=1, clevels=100, imin=0.0, imax=None, size_x = 9.0, 
+               size_y = 9.0, dpi = 100.0):
         # Initialization
         # idi : Signal-to-noise ratio for Stokes I total intensity. Default is
         #       idi = 50.0, which leads to an upper limit of at least dP = 5.0%
@@ -914,6 +915,7 @@ class obs:
         # pmax : Maximum polarization fraction allowed.
         # color : Color scheme used for the plots. Default is rainbow. 
         # scalevec : Length of the vectors plotted on the map.
+        # stepvec : Number of vectors skipped in the plot (default is none). 
         # clevels : Number of contours plotted on the contour plot.
         # imin : Minimum value plotted in the Stokes I intensity map.
         #        Default is 0.0.
@@ -987,7 +989,7 @@ class obs:
         print()
         
         # Plotting the polarization vectors
-        Bmap.show_vectors(pmap, omap, scale=scalevec)
+        Bmap.show_vectors(pmap, omap, scale=scalevec, step=stepvec)
         
         # Adding the beam size
         Bmap.add_beam(facecolor='white', edgecolor='black',
