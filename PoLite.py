@@ -619,7 +619,7 @@ class cat:
             plt.plot(ADFx, blbeam, 'k', linestyle='dashed')
             plt.plot(ADFx, bltheo, 'k')
 
-        return adf_function, ADFfit, ADFplot
+        return adf_function, ADFfit, ADFplot, blplot
 
 
 # =============================================================================
