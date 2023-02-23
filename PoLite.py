@@ -1014,7 +1014,7 @@ class obs:
 # Creating a mask for a region of the map
 # =============================================================================
     def MaskRegion(self, shape=None, center_RA=None, center_DEC=None, 
-                   radius=None, width=None, height=None):
+                   radius=None, width=None, height=None, angle=0):
         # Method to create a simple mask (either circular or rectangular) for 
         # data analysis.
         
@@ -1025,6 +1025,9 @@ class obs:
         # radius: If shape is Circle, then this paramter provides its radius (degrees)
         # width: If shape is Rectangle, then this paramter provides its width in right ascencion (degrees)
         # height: If shape is Circle, then this paramter provides its heigh in declination (degrees)
+        # angle : If shape is Rectangle, then this parameter provides the orientation East of North (degrees)
+
+        # Currently assumes celestial coordinates, will ne to be updated to account for galactic coordinates
         
         print()
         print('=============================')
@@ -1083,13 +1086,27 @@ class obs:
             for i in range (0,self.size[0]): # Declination
                 for j in range (0,self.size[1]): # Right Ascension
                     # Distance to central pixel
-                    delta_ra = abs((self.RA[i,j] - 
+                    # delta_ra = abs((self.RA[i,j] - 
+                    #            center_RA) * math.cos(
+                    #                self.DEC[i,j]*math.pi/180.0))
+                    # delta_dec = abs(self.DEC[i,j] - center_DEC)
+
+                    delta_ra = (self.RA[i,j] - 
                                center_RA) * math.cos(
-                                   self.DEC[i,j]*math.pi/180.0))
-                    delta_dec = abs(self.DEC[i,j] - center_DEC)
+                                   self.DEC[i,j]*math.pi/180.0)
+                    delta_dec = self.DEC[i,j] - center_DEC
+
+                    # Coordinate conversion
+                    x1 = delta_ra * -1.0
+                    y1 = delta_dec
+                    ang = angle*math.pi/180.0
+
+                    delta_x2 = abs(x1*math.cos(ang)+y1*math.sin(ang))
+                    delta_y2 = abs(-x1*math.sin(ang)+y1*math.cos(ang))
+
 
                     # Is the pixel in the mask?
-                    if delta_ra < 0.5*width and delta_dec < 0.5*height:
+                    if delta_x2 < 0.5*width and delta_y2 < 0.5*height:
                         mask.data[i,j] = 1.0
                     else:
                         mask.data[i,j] = np.nan
