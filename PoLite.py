@@ -855,7 +855,7 @@ class obs:
         # closed/deleted at the end of this method.
         
         # Muting the numpy alerts triggered by nan values
-        np.warnings.filterwarnings('ignore')
+        #np.warnings.filterwarnings('ignore')
         
         print()
         print('Applying happy selection criteria on polarization vectors')
@@ -966,7 +966,7 @@ class obs:
         # closed/deleted at the end of this method.
                 
         # Muting the numpy alerts triggered by nan values
-        np.warnings.filterwarnings('ignore')
+        #np.warnings.filterwarnings('ignore')
         
         print()
         print('Applying happy selection criteria on polarization vectors')
