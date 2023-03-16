@@ -80,7 +80,147 @@ class cat:
         self.DEC = np.empty(0) # Declination coordinates in degrees
         # Practical information
         self.size = None
-    
+
+# =============================================================================
+# Plotting the polarization fraction P as a function of the Stokes I intensity
+# =============================================================================
+    def PvI(self, Imin=None, Imax=None, Pmin=None, Pmax=None, scaleI='linear', scaleP='linear', errorbars='false'):
+
+        # Initialization
+        # Imin: Minimum value allowed for the x-axes of the plot, otherwise set automatically
+        # Imax: Minimum value allowed for the x-axes of the plot, otherwise set automatically
+        # Pmin: Minimum value allowed for the y-axes of the plot, otherwise set automatically
+        # Pmax: Minimum value allowed for the y-axes of the plot, otherwise set automatically
+        # ScaleI: 'linear' or 'log' scale for the x-axes of the plot, 'linear' by default
+        # ScaleI: 'linear' or 'log' scale for the y-axes of the plot, 'linear' by default
+        # errorbars: 'true' or 'false', shows errorbars for each point, 'false' by default
+
+        
+        print()
+        print('========================================================')
+        print('Polarization fraction P as a function of Stokes I')
+        print('========================================================')
+        print()
+        
+        print('Hopefully plotting a satisfactory figure!')
+        print()
+        
+                
+        # Plotting the polarization fraction as a function of the total intensity
+        PvI_plot = plt.figure() # Creating the figure object
+        plt.xlabel("Total Intensity $I$ (mJy per arcsec$^2$)")
+        plt.ylabel("Polarization Fraction $P$")
+
+        # Plots with and without errorbars 
+        if errorbars=='true':
+            plt.errorbar(self.I, self.P, yerr = self.dP, fmt ='o', color='black', markersize=3, mfc='none')
+        else:
+            plt.plot(self.I, self.P, 'o', color='black', markersize=3, mfc='none')
+
+        # Changing the scale of the plot axes
+        if scaleI=='log':
+            plt.xscale('log')
+        if scaleP=='log':
+            plt.yscale('log')
+        
+        # Checking the automated limits for I and P
+        xmin, xmax = plt.xlim()
+        ymin, ymax = plt.ylim()
+        # Setting mininum and maximum values of the I plot
+        if Imin==None:
+            Imin = xmin
+        if Imax==None:
+            Imax = xmax
+        if Pmin==None:
+            Pmin = ymin
+        if Pmax==None:
+            Pmax = ymax
+        # Setting the minimum and maximum values
+        plt.xlim(Imin,Imax)
+        plt.ylim(Pmin,Pmax)
+       
+        axes = plt.gca() # Calling the axes object of the figure
+        axes.xaxis.set_ticks_position('both') # Adding ticks to each side
+        axes.yaxis.set_ticks_position('both') # Adding ticks to each side
+
+        plt.tight_layout() # Using all available space in the plot window
+
+        print('Returning the figure object from matplotlib')
+        print()
+        print('Cheers!')
+        # Returning the plot
+        return PvI_plot
+
+# =============================================================================
+# Plotting the polarized intensity PI as a function of the Stokes I intensity
+# =============================================================================
+    def PIvI(self, Imin=None, Imax=None, PImin=None, PImax=None, scaleI='linear', scalePI='linear', errorbars='false'):
+
+        # Initialization
+        # Imin: Minimum value allowed for the x-axes of the plot, otherwise set automatically
+        # Imax: Minimum value allowed for the x-axes of the plot, otherwise set automatically
+        # Pmin: Minimum value allowed for the y-axes of the plot, otherwise set automatically
+        # Pmax: Minimum value allowed for the y-axes of the plot, otherwise set automatically
+        # ScaleI: 'linear' or 'log' scale for the x-axes of the plot, 'linear' by default
+        # ScaleI: 'linear' or 'log' scale for the y-axes of the plot, 'linear' by default
+        # errorbars: 'true' or 'false', shows errorbars for each point, 'false' by default
+
+        
+        print()
+        print('========================================================')
+        print('Polarized intensity PI as a function of Stokes I')
+        print('========================================================')
+        print()
+        
+        print('Hopefully plotting a satisfactory figure!')
+        print()
+        
+                
+        # Plotting the polarization fraction as a function of the total intensity
+        PIvI_plot = plt.figure() # Creating the figure object
+        plt.xlabel("Total Intensity $I$ (mJy per arcsec$^2$)")
+        plt.ylabel("Polarized Intensity $I_{P}$ (mJy per arcsec$^2$)")
+
+        # Plots with and without errorbars 
+        if errorbars=='true':
+            plt.errorbar(self.I, self.PI, yerr = self.dPI, fmt ='o', color='black', markersize=3, mfc='none')
+        else:
+            plt.plot(self.I, self.PI, 'o', color='black', markersize=3, mfc='none')
+
+        # Changing the scale of the plot axes
+        if scaleI=='log':
+            plt.xscale('log')
+        if scalePI=='log':
+            plt.yscale('log')
+        
+        # Checking the automated limits for I and P
+        xmin, xmax = plt.xlim()
+        ymin, ymax = plt.ylim()
+        # Setting mininum and maximum values of the I plot
+        if Imin==None:
+            Imin = xmin
+        if Imax==None:
+            Imax = xmax
+        if PImin==None:
+            PImin = ymin
+        if PImax==None:
+            PImax = ymax
+        # Setting the minimum and maximum values
+        plt.xlim(Imin,Imax)
+        plt.ylim(PImin,PImax)
+       
+        axes = plt.gca() # Calling the axes object of the figure
+        axes.xaxis.set_ticks_position('both') # Adding ticks to each side
+        axes.yaxis.set_ticks_position('both') # Adding ticks to each side
+
+        plt.tight_layout() # Using all available space in the plot window
+
+        print('Returning the figure object from matplotlib')
+        print()
+        print('Cheers!')
+        # Returning the plot
+        return PIvI_plot
+
 # =============================================================================
 # Function to create an Histogram and fit a Gaussian function
 # =============================================================================
@@ -250,7 +390,7 @@ class cat:
         return histo_plot, fit_params
     
 # =============================================================================
-# Structure function and angular dispersion analysis
+# Structure function and angular dispersion analysis (consider splitting)
 # =============================================================================
     def ADF(self, binsize=8.0, binrange=80.0, deltaPrime=None, 
             beamsize=None, showfit='yes'):
@@ -1149,6 +1289,15 @@ class obs:
 
         print('Providing combined mask, good luck!')
         return mask
+    
+# =============================================================================
+# Showing the resulting mask on an AplPy figure
+# =============================================================================
+    def ShowMask(figure, shape=None, center_RA=None, center_DEC=None, 
+                 radius=None, width=None, height=None, angle=0):
+        # Method to combine two masks into one for data analysis
+        print('test')
+        return 
     
 # =============================================================================
 # *****************************************************************************
