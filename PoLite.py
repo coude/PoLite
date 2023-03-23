@@ -52,7 +52,7 @@ from lmfit import Parameters, Model
 import math
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import stats
+from scipy import stats, optimize
 
 # =============================================================================
 # *****************************************************************************
@@ -84,7 +84,8 @@ class cat:
 # =============================================================================
 # Plotting the polarization fraction P as a function of the Stokes I intensity
 # =============================================================================
-    def PvI(self, Imin=None, Imax=None, Pmin=None, Pmax=None, scaleI='linear', scaleP='linear', errorbars='false'):
+    def PvI(self, Imin=None, Imax=None, Pmin=None, Pmax=None, scaleI='linear', scaleP='linear',
+            errorbars='false', showfit='false', weighted='false'):
 
         # Initialization
         # Imin: Minimum value allowed for the x-axes of the plot, otherwise set automatically
@@ -94,6 +95,7 @@ class cat:
         # ScaleI: 'linear' or 'log' scale for the x-axes of the plot, 'linear' by default
         # ScaleI: 'linear' or 'log' scale for the y-axes of the plot, 'linear' by default
         # errorbars: 'true' or 'false', shows errorbars for each point, 'false' by default
+        # showfit: 'true' or 'false', fits weighted (in dP) power law to PvI relation, 'false' by default
 
         
         print()
@@ -102,20 +104,50 @@ class cat:
         print('========================================================')
         print()
         
+
+        if showfit=='true':
+            print()
+            print('Fitting an error-weighted (in P) power law to the PvI relation')
+
+            # Create the array with ln(I), ln(P), and d(ln(P))
+            # The numpy package uses log(x) as the natural logarithm ln
+            length = self.size
+            PvIarray = np.empty([length, 3])
+            PvIarray[:,0]=np.log(self.I)
+            PvIarray[:,1]=np.log(self.P)
+            PvIarray[:,2]=self.dP/self.P
+            # Defining linear function to be fitted by curve_fit
+            def lnPvlnI(x, a, b):
+                return a*x + b
+            # Fitting power law to data
+            if weighted=='true':
+                PvIpow, PvIcov = optimize.curve_fit(lnPvlnI, PvIarray[:,0], PvIarray[:,1], sigma=PvIarray[:,2])
+            else:
+                PvIpow, PvIcov = optimize.curve_fit(lnPvlnI, PvIarray[:,0], PvIarray[:,1])
+            # Uncertainties on the fit
+            PvIerr = np.sqrt(np.diag(PvIcov))
+            # Converting the coefficient back to its non-logarithmic value
+            PvIcoeff = math.exp(PvIpow[1])
+            PvIdcoeff = math.exp(PvIpow[1]) * PvIerr[1]
+            # Printing the results of the fit
+            print()
+            print('Power law index: '+str(PvIpow[0])+' ± '+str(PvIerr[0]))
+            print('Coefficient: '+str(PvIcoeff)+' ± '+str(PvIdcoeff))
+
+        print()
         print('Hopefully plotting a satisfactory figure!')
         print()
-        
                 
         # Plotting the polarization fraction as a function of the total intensity
         PvI_plot = plt.figure() # Creating the figure object
         plt.xlabel("Total Intensity $I$ (mJy per arcsec$^2$)")
-        plt.ylabel("Polarization Fraction $P$")
+        plt.ylabel("Polarization Fraction $P$ (%)")
 
         # Plots with and without errorbars 
         if errorbars=='true':
             plt.errorbar(self.I, self.P, yerr = self.dP, fmt ='o', color='black', markersize=3, mfc='none')
         else:
-            plt.plot(self.I, self.P, 'o', color='black', markersize=3, mfc='none')
+            plt.plot(self.I, self.P, 'o', color='black', markersize=3, mfc='none')         
 
         # Changing the scale of the plot axes
         if scaleI=='log':
@@ -138,6 +170,17 @@ class cat:
         # Setting the minimum and maximum values
         plt.xlim(Imin,Imax)
         plt.ylim(Pmin,Pmax)
+
+                # Adding power law fit
+        if showfit=='true':
+            def PvIfunc(x, A, B):
+                return A*x**B
+            
+            # Creating x values
+            PvIfuncX = np.arange(Imin, Imax, 0.1)
+            # Calculating the y values
+            PvIfuncY = PvIfunc(PvIfuncX,PvIcoeff,PvIpow[0])
+            plt.plot(PvIfuncX, PvIfuncY, 'k')
        
         axes = plt.gca() # Calling the axes object of the figure
         axes.xaxis.set_ticks_position('both') # Adding ticks to each side
