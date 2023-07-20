@@ -830,6 +830,9 @@ class obs:
         self.dO = np.empty([0,0]) # Uncertainty dO for polarization angle O
         self.RA = np.empty([0,0]) # Right Ascension coordinates in degrees
         self.DEC = np.empty([0,0]) # Declination coordinates in degrees
+        self.GaLong = np.empty([0,0]) # Galactic longitude in degrees
+        self.GaLat = np.empty([0,0]) # Galactic latitude in degrees
+        self.SkyCoords = np.empty([0,0]) # Array of SkyCoords objects
         
         # Observation properties
         self.instrument = 'None' # Instrument used for observations
@@ -976,7 +979,7 @@ class obs:
 # =============================================================================
     def polmap(self, idi=50.0, pdp=3.0, pmax=30.0, color='rainbow', 
                scalevec=0.4, stepvec = 1, clevels=100, imin=0.0, imax=None, 
-               size_x = 9.0, size_y = 9.0, dpi = 100.0):
+               size_x = 9.0, size_y = 9.0, dpi = 100.0, vcolor='black'):
         # Initialization
         # idi : Signal-to-noise ratio for Stokes I total intensity. Default is
         #       idi = 50.0, which leads to an upper limit of at least dP = 5.0%
@@ -1059,7 +1062,7 @@ class obs:
         print()
         
         # Plotting the polarization vectors
-        polmap.show_vectors(pmap, omap, scale=scalevec , step=stepvec)
+        polmap.show_vectors(pmap, omap, scale=scalevec , step=stepvec, color=vcolor)
         
         # Adding the beam size
         polmap.add_beam(facecolor='white', edgecolor='black',
@@ -1087,7 +1090,7 @@ class obs:
 # =============================================================================
     def Bmap(self, idi=50.0, pdp=3.0, pmax=30.0, color='rainbow', scalevec=1.0,
                stepvec=1, clevels=100, imin=0.0, imax=None, size_x = 9.0, 
-               size_y = 9.0, dpi = 100.0):
+               size_y = 9.0, dpi = 100.0, vcolor='black'):
         # Initialization
         # idi : Signal-to-noise ratio for Stokes I total intensity. Default is
         #       idi = 50.0, which leads to an upper limit of at least dP = 5.0%
@@ -1172,7 +1175,7 @@ class obs:
         print()
         
         # Plotting the polarization vectors
-        Bmap.show_vectors(pmap, omap, scale=scalevec, step=stepvec)
+        Bmap.show_vectors(pmap, omap, scale=scalevec, step=stepvec, color=vcolor)
         
         # Adding the beam size
         Bmap.add_beam(facecolor='white', edgecolor='black',
@@ -1427,7 +1430,7 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     # fits_qmap : String for the name of the Stokes Q map to be loaded
     # fits_umap : String for the name of the Stokes U map to be loaded
     
-    # This function is valid as of 2020/09/15
+    # This function is valid as of 2023/07/20
            
     print()
     print('=============================')
@@ -1467,10 +1470,12 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     # Beam size in arcseconds
     if pol2_obs.wavelength == 450.0:
         pol2_obs.beam = 9.8 # Effective beam size at 450 um in arcseconds
+        beam_area = math.pi*(pol2_obs.beam/2.0)**2.0
         conv = 1000.0*1.35 * 491.0 # As of 2020/01/23
     elif pol2_obs.wavelength == 850.0:
         pol2_obs.beam = 14.6 # Effective beam size at 850 um in arcseconds
-        conv = 1000.0*1.35 * 537.0 # As of 2020/01/23
+        beam_area = math.pi*(pol2_obs.beam/2.0)**2.0
+        conv = 1000.0*1.35 * 537.0# As of 2020/01/23
     else:
         print('Sorry, but no valid wavelength was provided...')
     
@@ -1484,18 +1489,19 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     
     # Adapting the header if a third dimension exists in the data
     # Ugly workaround, may need to be improved in the future
-    pol2_obs.header['NAXIS'] = 2
-    pol2_obs.header.remove('NAXIS3')
-    pol2_obs.header.remove('LBOUND3')
-    pol2_obs.header.remove('CRPIX3')
-    pol2_obs.header.remove('CRVAL3')
-    pol2_obs.header.remove('CDELT3')
-    pol2_obs.header.remove('CTYPE3')
-    pol2_obs.header.remove('CUNIT3')
-    pol2_obs.header.remove('CRPIX3A')
-    pol2_obs.header.remove('CRVAL3A')
-    pol2_obs.header.remove('CDELT3A')
-    pol2_obs.header.remove('CUNIT3A')
+    if pol2_obs.header['NAXIS'] == 3:
+        pol2_obs.header['NAXIS'] = 2
+        pol2_obs.header.remove('NAXIS3')
+        pol2_obs.header.remove('LBOUND3')
+        pol2_obs.header.remove('CRPIX3')
+        pol2_obs.header.remove('CRVAL3')
+        pol2_obs.header.remove('CDELT3')
+        pol2_obs.header.remove('CTYPE3')
+        pol2_obs.header.remove('CUNIT3')
+        pol2_obs.header.remove('CRPIX3A')
+        pol2_obs.header.remove('CRVAL3A')
+        pol2_obs.header.remove('CDELT3A')
+        pol2_obs.header.remove('CUNIT3A')
     pol2_obs.header.append(
             ('BMAJ',pol2_obs.beam/3600.0, 'Beam major axis'))
     pol2_obs.header.append(
@@ -1558,3 +1564,123 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     
     # Returning the obs object created with the POL-2 data
     return pol2_obs
+
+# =============================================================================
+# *****************************************************************************
+# Function to create an obs object from a SCUPOL Legacy data cube
+# =============================================================================
+# *****************************************************************************
+def load_scupol(fits_name):
+    # Initialization
+    # fits_name : String for the name of the fits file to be loaded
+         
+    # Loading the HAWC+ fits file
+    print()
+    print('=========================')
+    print('Kindly loading SCUPOL data')
+    print('=========================')
+    print()
+    print('Opening FITS file:')
+    print(fits_name)
+    print()
+    scupol_data = fits.open(fits_name)
+    # Creating the obs object to be provided by the function
+    scupol_obs = obs()
+    
+    # Loading the ancillary information for hawc_obs
+    scupol_obs.header = scupol_data[0].header # Copy of the primary fits header
+    scupol_obs.instrument = 'SCUPOL' # Instrument used for observations
+    scupol_obs.wavelength = '850' # Wavelength observed in microns
+    scupol_obs.object = scupol_data[0].header['OBJECT'] # Astronomical target name
+    scupol_obs.astrometry = wcs.WCS(scupol_data[0].header) # Astrometry information for the data
+    scupol_obs.beam = 13.0 # Beam size in arcseconds
+    
+    print('Astronomical object: '+scupol_obs.object)
+    print('Wavelength observed: '+str(scupol_obs.wavelength)+' µm')
+    print()
+    
+    # Unit conversion from Jy/pixel to mJy/arcsec^2
+    scupol_obs.pixel = 3600.0*(scupol_data[0].header['CD2_2']) # Pixel scale of the data in arcseconds
+    scupol_obs.units = 'mJy per arcsec$^2$' # Setting working units
+    conv = 1000.0*220*scupol_obs.pixel**-2.0 # Conversion factor from Jy/pixel
+    
+    # Loading data for every attribute of hawc_obs
+    scupol_obs.I = np.squeeze(conv*scupol_data[0].data[0]) # Stokes I
+    scupol_obs.dI = np.squeeze(conv*(scupol_data[1].data[0])**0.5) # Uncertainty dI for Stokes I
+    scupol_obs.Q = np.squeeze(conv*scupol_data[0].data[1]) # Stokes Q
+    scupol_obs.dQ = np.squeeze(conv*(scupol_data[1].data[1])**0.5) # Uncertainty dQ for Stokes Q
+    scupol_obs.U = np.squeeze(conv*scupol_data[0].data[2]) # Stokes U
+    scupol_obs.dU = np.squeeze(conv*(scupol_data[1].data[2])**0.5) # Uncertainty dU for Stokes U
+ 
+    # ======================================
+    # Generating the polarization properties
+    # ======================================
+    
+    # Biased polarized intensity
+    pi_biased = (scupol_obs.Q**2.0 + scupol_obs.U**2.0)**0.5
+    # PI uncertainties
+    scupol_obs.dPI = ((scupol_obs.Q*scupol_obs.dQ)**2.0 + 
+                    (scupol_obs.U*scupol_obs.dU)**2.0)**0.5/pi_biased
+    # De-biased polarized intensity PI
+    scupol_obs.PI = (pi_biased**2.0 - scupol_obs.dPI**2.0)**0.5
+    # Removing unphysical negative values
+    pimask = np.where(scupol_obs.PI < 0.0)
+    imask = np.where(scupol_obs.I < 0.0)
+    # Masking the values in PI and dPI
+    scupol_obs.PI[pimask] = np.nan
+    scupol_obs.dPI[pimask] = np.nan
+    scupol_obs.PI[imask] = np.nan
+    scupol_obs.dPI[imask] = np.nan
+    
+    # Polarization fraction P
+    scupol_obs.P = 100.0*scupol_obs.PI/scupol_obs.I
+    # Uncertainty of polarization fraction
+    scupol_obs.dP = scupol_obs.P*((scupol_obs.dPI/scupol_obs.PI)**2.0 + 
+                              (scupol_obs.dI/scupol_obs.I)**2.0)**0.5
+    
+    # Polarization angle O
+    scupol_obs.O = (0.5*180.0/math.pi)*np.arctan2(scupol_obs.U, scupol_obs.Q)
+    # Uncertainties dO
+    scupol_obs.dO = (0.5*180.0/math.pi)*((scupol_obs.Q*scupol_obs.dU)**2.0 + 
+                       (scupol_obs.U*scupol_obs.dQ)**2.0)**0.5/pi_biased
+    # Polarization angle B
+    scupol_obs.B = scupol_obs.O + 90.0
+    scupol_obs.B[np.where(scupol_obs.B > 90.0)] = scupol_obs.B[np.where(scupol_obs.B 
+               > 90.0)] - 180.0
+    
+    # Adapting the header if a third dimension exists in the data
+    # Ugly workaround, may need to be improved in the future
+    scupol_obs.header['NAXIS'] = 2
+    scupol_obs.header.remove('NAXIS3')
+    scupol_obs.header.remove('LBOUND3')
+    scupol_obs.header.remove('CRPIX3')
+    scupol_obs.header.remove('CRVAL3')
+    scupol_obs.header.remove('CD3_3')
+    scupol_obs.header.remove('CTYPE3')
+    scupol_obs.header.append(
+            ('BMAJ',scupol_obs.beam/3600.0, 'Beam major axis'))
+    scupol_obs.header.append(
+            ('BMIN',scupol_obs.beam/3600.0, 'Beam minor axis'))
+    scupol_obs.header.append(('BPA',0.0, 'Beam position angle'))
+    scupol_obs.astrometry = wcs.WCS(scupol_obs.header) # Astrometry information for the data   
+    
+    # Finding the Y and X size of the arrays 
+    scupol_obs.size = scupol_obs.I.shape # hawc_obs.size should be in the form (Y,X)
+    print(scupol_obs.size)
+    
+    
+    # Expanding the arrays of coordinates
+    scupol_obs.RA = np.zeros(scupol_obs.size)
+    scupol_obs.DEC = np.zeros(scupol_obs.size)
+    # Identifying the world coordinates for each pixel - NOT EFFICIENT?    
+    for i in range (0,scupol_obs.size[0]): # Declination
+        for j in range (0,scupol_obs.size[1]): # Right Ascension
+            scupol_obs.RA[i,j], scupol_obs.DEC[i,j] = (
+                scupol_obs.astrometry.array_index_to_world_values(i,j))
+
+    # Closing access to the fits file
+    scupol_data.close()
+    
+    # Returning the obs object created with the HAWC+ data cube
+    print('Have a nice day!')
+    return scupol_obs
