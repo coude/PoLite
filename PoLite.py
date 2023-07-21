@@ -281,7 +281,7 @@ class cat:
         print('========================================================')
         print()
         
-        print('Calculating mean and standard deviaton of the catalog')
+        print('Calculating mean and standard deviation of the catalog')
         print()
         
         # Conversion from degrees to radians
