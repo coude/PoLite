@@ -1542,7 +1542,7 @@ def load_pol2(target, fits_imap, fits_qmap, fits_umap):
     pol2_obs.O = (0.5*180.0/math.pi)*np.arctan2(pol2_obs.U, pol2_obs.Q)
     # Uncertainties dO
     pol2_obs.dO = (0.5*180.0/math.pi)*((pol2_obs.Q*pol2_obs.dU)**2.0 + 
-                       (pol2_obs.U*pol2_obs.dQ)**2.0)**0.5/pi_biased
+                       (pol2_obs.U*pol2_obs.dQ)**2.0)**0.5/pi_biased**2.0
     # Polarization angle B
     pol2_obs.B = pol2_obs.O + 90.0
     pol2_obs.B[np.where(pol2_obs.B > 90.0)] = pol2_obs.B[np.where(pol2_obs.B 
@@ -1642,7 +1642,7 @@ def load_scupol(fits_name):
     scupol_obs.O = (0.5*180.0/math.pi)*np.arctan2(scupol_obs.U, scupol_obs.Q)
     # Uncertainties dO
     scupol_obs.dO = (0.5*180.0/math.pi)*((scupol_obs.Q*scupol_obs.dU)**2.0 + 
-                       (scupol_obs.U*scupol_obs.dQ)**2.0)**0.5/pi_biased
+                       (scupol_obs.U*scupol_obs.dQ)**2.0)**0.5/pi_biased**2.0
     # Polarization angle B
     scupol_obs.B = scupol_obs.O + 90.0
     scupol_obs.B[np.where(scupol_obs.B > 90.0)] = scupol_obs.B[np.where(scupol_obs.B 
